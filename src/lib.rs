@@ -170,7 +170,7 @@ macro_rules! gen_read {
     });
 }
 
-type Cache = u128;
+type Cache = u64;
 const BYTE_WIDTH: usize = ::std::mem::size_of::<Cache>();
 const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 
