@@ -75,10 +75,6 @@
 //! some libraries favor byte aligned reads (looking at you, bitstream_io), and since 7 out of 8
 //! bits aren't byte aligned, there is a performance hit.
 
-extern crate byteorder;
-
-use byteorder::{ByteOrder, LittleEndian};
-
 /// Yields consecutive bits as little endian primitive types
 pub struct BitGet<'a> {
     data: &'a [u8],
@@ -326,7 +322,8 @@ impl<'a> BitGet<'a> {
                 Some(())
             }
         } else {
-            self.current = LittleEndian::read_u64(self.data);
+            let arr: &[u8; BYTE_WIDTH] = unsafe { &*(self.data.as_ptr() as *const [u8; BYTE_WIDTH]) };
+            self.current = u64::from_le_bytes(*arr);
             self.position = 0;
             self.data = &self.data[BYTE_WIDTH..];
             Some(())
@@ -351,7 +348,8 @@ impl<'a> BitGet<'a> {
                 self.data = &self.data[self.data.len()..];
             }
         } else {
-            self.current = LittleEndian::read_u64(self.data);
+            let arr: &[u8; BYTE_WIDTH] = unsafe { &*(self.data.as_ptr() as *const [u8; BYTE_WIDTH]) };
+            self.current = u64::from_le_bytes(*arr);
             self.position = 0;
             self.data = &self.data[BYTE_WIDTH..];
         }

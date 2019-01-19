@@ -9,9 +9,6 @@ keywords = ["bitstream", "little-endian"]
 categories = ["parsing"]
 license = "MIT"
 
-[dependencies]
-byteorder = "1"
-
 [[bench]]
 name = "bitter"
 harness = false
