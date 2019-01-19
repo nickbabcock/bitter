@@ -58,21 +58,28 @@ fn eight_bits(c: &mut Criterion) {
         "bitter_arbitrary_unchecked",
         ben!(BitGet::new(&DATA), |x: &mut BitGet| x
             .read_u32_bits_unchecked(8)),
-    ).with_function(
+    )
+    .with_function(
         "bitter_arbitrary_checked",
-        ben!(BitGet::new(&DATA), |x: &mut BitGet| x.read_u32_bits(8)),
-    ).with_function(
+        ben!(BitGet::new(&DATA), |x: &mut BitGet| x
+            .read_u32_bits(8)
+            .unwrap()),
+    )
+    .with_function(
         "bitter_byte_unchecked",
         ben!(BitGet::new(&DATA), |x: &mut BitGet| x.read_u8_unchecked()),
-    ).with_function(
+    )
+    .with_function(
         "bitter_byte_checked",
-        ben!(BitGet::new(&DATA), |x: &mut BitGet| x.read_u8()),
-    ).with_function(
+        ben!(BitGet::new(&DATA), |x: &mut BitGet| x.read_u8().unwrap()),
+    )
+    .with_function(
         "bitreader",
         ben!(BitReader::new(&DATA), |x: &mut BitReader| x
             .read_u8(8)
             .unwrap()),
-    ).with_function("nom", |b| nom_bench(b, 8))
+    )
+    .with_function("nom", |b| nom_bench(b, 8))
     .with_function("bitstream_io", |b| bitstream_bench(b, 8))
     .throughput(Throughput::Bytes(8 * ITER));
 
@@ -84,15 +91,20 @@ fn seven_bits(c: &mut Criterion) {
         "bitter_arbitrary_unchecked",
         ben!(BitGet::new(&DATA), |x: &mut BitGet| x
             .read_u32_bits_unchecked(7)),
-    ).with_function(
+    )
+    .with_function(
         "bitter_arbitrary_checked",
-        ben!(BitGet::new(&DATA), |x: &mut BitGet| x.read_u32_bits(7)),
-    ).with_function(
+        ben!(BitGet::new(&DATA), |x: &mut BitGet| x
+            .read_u32_bits(7)
+            .unwrap()),
+    )
+    .with_function(
         "bitreader",
         ben!(BitReader::new(&DATA), |x: &mut BitReader| x
             .read_u8(7)
             .unwrap()),
-    ).with_function("nom", |b| nom_bench(b, 7))
+    )
+    .with_function("nom", |b| nom_bench(b, 7))
     .with_function("bitstream_io", |b| bitstream_bench(b, 7))
     .throughput(Throughput::Bytes(7 * ITER));
 

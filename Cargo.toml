@@ -10,11 +10,11 @@ categories = ["parsing"]
 license = "MIT"
 
 [[bench]]
-name = "bitter"
+name = "bench_bits"
 harness = false
 
 [dev-dependencies]
-criterion = "0.2"
+criterion = "0.2.7"
 bitreader = "0.3.1"
 bitstream-io = "0.6"
 nom = "4"
