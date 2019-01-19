@@ -478,7 +478,7 @@ impl<'a> BitGet<'a> {
     /// assert_eq!(bitter.if_get(BitGet::read_u8), Some(None));
     /// assert_eq!(bitter.if_get(BitGet::read_u8), None);
     /// ```
-    #[cfg_attr(feature = "cargo-clippy", allow(option_option))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::option_option))]
     pub fn if_get<T, F>(&mut self, mut f: F) -> Option<Option<T>>
     where
         F: FnMut(&mut Self) -> Option<T>,
