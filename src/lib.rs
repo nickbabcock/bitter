@@ -78,7 +78,7 @@
 /// Yields consecutive bits as little endian primitive types
 pub struct BitGet<'a> {
     data: &'a [u8],
-    current: u64,
+    current: Cache,
     position: usize,
 }
 
@@ -170,7 +170,8 @@ macro_rules! gen_read {
     });
 }
 
-const BYTE_WIDTH: usize = ::std::mem::size_of::<u64>();
+type Cache = u128;
+const BYTE_WIDTH: usize = ::std::mem::size_of::<Cache>();
 const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 
 impl<'a> BitGet<'a> {
@@ -315,15 +316,16 @@ impl<'a> BitGet<'a> {
                 self.position = BIT_WIDTH - (self.data.len() * 8);
                 self.current = 0;
                 for i in 0..self.data.len() {
-                    self.current += u64::from(self.data[i]) << (i * 8)
+                    self.current += Cache::from(self.data[i]) << (i * 8)
                 }
                 self.current <<= 8 * (BYTE_WIDTH - self.data.len());
                 self.data = &self.data[self.data.len()..];
                 Some(())
             }
         } else {
-            let arr: &[u8; BYTE_WIDTH] = unsafe { &*(self.data.as_ptr() as *const [u8; BYTE_WIDTH]) };
-            self.current = u64::from_le_bytes(*arr);
+            let arr: &[u8; BYTE_WIDTH] =
+                unsafe { &*(self.data.as_ptr() as *const [u8; BYTE_WIDTH]) };
+            self.current = Cache::from_le_bytes(*arr);
             self.position = 0;
             self.data = &self.data[BYTE_WIDTH..];
             Some(())
@@ -342,14 +344,15 @@ impl<'a> BitGet<'a> {
                 self.position = BIT_WIDTH - (self.data.len() * 8);
                 self.current = 0;
                 for i in 0..self.data.len() {
-                    self.current += u64::from(self.data[i]) << (i * 8)
+                    self.current += Cache::from(self.data[i]) << (i * 8)
                 }
                 self.current <<= 8 * (BYTE_WIDTH - self.data.len());
                 self.data = &self.data[self.data.len()..];
             }
         } else {
-            let arr: &[u8; BYTE_WIDTH] = unsafe { &*(self.data.as_ptr() as *const [u8; BYTE_WIDTH]) };
-            self.current = u64::from_le_bytes(*arr);
+            let arr: &[u8; BYTE_WIDTH] =
+                unsafe { &*(self.data.as_ptr() as *const [u8; BYTE_WIDTH]) };
+            self.current = Cache::from_le_bytes(*arr);
             self.position = 0;
             self.data = &self.data[BYTE_WIDTH..];
         }
