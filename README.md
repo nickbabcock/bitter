@@ -1,5 +1,7 @@
 # Bitter
 
+[![Build Status](https://travis-ci.org/nickbabcock/bitter.svg?branch=master)](https://travis-ci.org/nickbabcock/bitter) [![Build status](https://ci.appveyor.com/api/projects/status/1y9ye7sp09rt9mwb/branch/master?svg=true)](https://ci.appveyor.com/project/nickbabcock/bitter/branch/master)
+
 Bitter takes a slice of byte data and reads little-endian bits platform agonistically. Bitter has
 been optimized to be fast for reading 64 or fewer bits at a time, though it can still extract
 an arbitrary number of bytes.
