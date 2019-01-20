@@ -1,4 +1,4 @@
-## 0.1.1 - TBD
+## 0.2.0 - 2019-01-20
 
 - Remove byteorder dependency (so bitter is dependency free)
 - Requires Rust 1.32 or later
