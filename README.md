@@ -2,23 +2,18 @@
 
 [![Build Status](https://travis-ci.org/nickbabcock/bitter.svg?branch=master)](https://travis-ci.org/nickbabcock/bitter) [![Build status](https://ci.appveyor.com/api/projects/status/1y9ye7sp09rt9mwb/branch/master?svg=true)](https://ci.appveyor.com/project/nickbabcock/bitter/branch/master)
 
-Bitter takes a slice of byte data and reads little-endian bits platform agonistically. Bitter has
-been optimized to be fast for reading 64 or fewer bits at a time, though it can still extract
-an arbitrary number of bytes.
+Bitter takes a slice of byte data and reads little-endian bits platform agonistically.
 
 There are two main APIs available: checked and unchecked functions. A checked function will
 return a `Option` that will be `None` if there is not enough bits left in the stream.
-Unchecked functions, which are denoted by having "unchecked" in their name, will panic if there
-is not enough data left, but happen to be ~10% faster (your numbers
+Unchecked functions, which are denoted by having "unchecked" in their name, will exhibit
+undefined behavior if there is not enough data left, but happen to be 2x faster (your numbers
 will vary depending on use case).
 
 Tips:
 
 - Prefer checked functions for all but the most performance critical code
-- Group all unchecked functions in a single block guarded by a `approx_bytes_remaining` or
-  `bits_remaining` call
-- Prefer `read_u8()` over `read_u32_bits_unchecked(8)` as the specialized functions have a
-  slight performance edge over the generic function
+- Group all unchecked functions in a single block guarded by a `has_bits_remaining` call
 
 ## Example
 
@@ -33,27 +28,61 @@ assert_eq!(bitter.read_u32_bits(7), Some(0x02));
 Below, is a demonstration of guarding against potential panics:
 
 ```rust
+use bitter::BitGet;
 let mut bitter = BitGet::new(&[0xff, 0x04]);
-if bitter.approx_bytes_remaining() >= 2 {
+if bitter.has_bits_remaining(16) {
     assert_eq!(bitter.read_bit_unchecked(), true);
     assert_eq!(bitter.read_u8_unchecked(), 0x7f);
     assert_eq!(bitter.read_u32_bits_unchecked(7), 0x02);
 }
 ```
 
-## Implementation
+Another guard usage:
 
-Currently the implementation pre-fetches 64 bit chunks so that more operations can be performed
-on a single primitive type (`u64`). Pre-fetching like this allows for operations that request
-4 bytes to be completed in, at best, a bit shift and mask instead of, at best, four bit
-shifts and masks.
+```rust
+use bitter::BitGet;
+let mut bitter = BitGet::new(&[0xff, 0x04]);
+if bitter.has_bits_remaining(16) {
+    for _ in 0..8 {
+        assert_eq!(bitter.read_bit_unchecked(), true);
+    }
+    assert_eq!(bitter.read_u8_unchecked(), 0x04);
+}
+```
 
 ## Comparison to other libraries
 
 Bitter is hardly the first Rust library for handling bits.
-[bitstream_io](https://crates.io/crates/bitstream-io) and
-[bitreader](https://crates.io/crates/bitreader) are both crates one should consider. The reason
-why someone would choose bitter over those two is speed. The other libraries lack a "trust me I
-know what I'm doing" API, which bitter can give you a 10x performance increase. Additionally,
-some libraries favor byte aligned reads (looking at you, bitstream_io), and since 7 out of 8
-bits aren't byte aligned, there is a performance hit.
+[nom](https://crates.io/crates/nom),
+[bitstream_io](https://crates.io/crates/bitstream-io), and
+[bitreader](https://crates.io/crates/bitreader) are crates one should consider.
+The reason why someone would choose bitter is speed.
+
+## Benchmarking
+
+Benchmarks are ran with the following command:
+
+```
+cargo clean
+RUSTFLAGS="-C target-cpu=native" cargo bench -- bit-reading
+find ./target -wholename "*/new/raw.csv" -print0 | xargs -0 xsv cat rows > assets/benchmark-data.csv
+```
+
+And can be analyzed with the R script found in the assets directory. Keep in mind, benchmarks will vary by machine
+
+![bench-bit-reads.png](assets/bench-bit-reads.png)
+
+Takeaways from the above chart:
+
+* Bitter unchecked APIs yield the greatest throughput across all read sizes
+* Bitter checked APIs cost roughly half the throughput of bitter unchecked APIs
+* While the first version of this library's unchecked APIs (bitterv1) are good, the current version has improved the checked versions to be close behind
+* Nom performs very respectively for a library not specializing in bit reads
+* Nom has a small but appreciable throughput with an increase in read sizes
+* Other libraries should not be considered for performance sensitive areas
+
+Since the chart lacks quotable numbers and is too dense to make an interpretation for small payloads, here is a table (for power of 2 read sizes).
+
+![bench-bit-table.png](assets/bench-bit-table.png)
+
+Interpretations remain the same, but now one can compare performance numbers in a quantifiable manner. I enjoy that bitter can consume 1 GB/s of data reading one bit at a time.
