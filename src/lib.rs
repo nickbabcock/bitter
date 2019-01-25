@@ -157,17 +157,17 @@ impl<'a> BitGet<'a> {
     #[inline]
     pub fn read_u64_unchecked(&mut self) -> u64 {
         let bts = ::std::mem::size_of::<u64>() * 8;
-	let little = self.current_val >> self.pos;
-	self.current = unsafe { self.current.add(BYTE_WIDTH) };
-	self.current_val = unsafe { read!(self.current, u64) };
-	let left = bts - (BIT_WIDTH - self.pos);
+        let little = self.current_val >> self.pos;
+        self.current = unsafe { self.current.add(BYTE_WIDTH) };
+        self.current_val = unsafe { read!(self.current, u64) };
+        let left = bts - (BIT_WIDTH - self.pos);
         let big = if left == 0 {
             0
         } else {
             self.current_val << (bts - left)
         };
-	self.pos = left;
-	little + big
+        self.pos = left;
+        little + big
     }
 
     #[inline]
