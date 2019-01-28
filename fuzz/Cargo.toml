@@ -1,0 +1,30 @@
+
+[package]
+name = "bitter-fuzz"
+version = "0.0.1"
+authors = ["Automatically generated"]
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies.bitter]
+path = ".."
+[dependencies.libfuzzer-sys]
+git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
+
+[dependencies.bitterv1]
+package = "bitter"
+version = "=0.1.0"
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "fuzz_bitter"
+path = "fuzz_targets/fuzz_bitter.rs"
+
+[[bin]]
+name = "fuzz_simple"
+path = "fuzz_targets/fuzz_simple.rs"
