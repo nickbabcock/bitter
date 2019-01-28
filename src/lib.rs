@@ -159,14 +159,12 @@ impl<'a> BitGet<'a> {
         let bts = ::std::mem::size_of::<u64>() * 8;
         let little = self.current_val >> self.pos;
         self.current = unsafe { self.current.add(BYTE_WIDTH) };
-        self.current_val = unsafe { read!(self.current, u64) };
-        let left = bts - (BIT_WIDTH - self.pos);
-        let big = if left == 0 {
+        self.current_val = unsafe { read!(self.current, u64, self.end) };
+        let big = if self.pos == 0 {
             0
         } else {
-            self.current_val << (bts - left)
+            self.current_val << (bts - self.pos)
         };
-        self.pos = left;
         little + big
     }
 
