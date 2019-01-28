@@ -18,6 +18,8 @@ criterion = "0.2.7"
 bitreader = "0.3.1"
 bitstream-io = "0.6"
 nom = "4"
+quickcheck = "0.8.0"
+quickcheck_macros = "0.8"
 
 [dev-dependencies.bitterv1]
 package = "bitter"
