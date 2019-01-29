@@ -66,6 +66,8 @@ pub struct BitGet<'a> {
     /// The eight bytes that current is pointing at
     current_val: u64,
 
+    reads_left: usize,
+
     /// Sentinel pointer to end of the slice
     end: *const u8,
 
@@ -97,7 +99,7 @@ macro_rules! gen_read_unchecked {
         } else {
             let little = (self.current_val >> self.pos) as $t;
             self.current = unsafe { self.current.add(BYTE_WIDTH) };
-            self.current_val = unsafe { read!(self.current, u64, self.end) };
+            self.current_val = unsafe { read!(self, u64) };
             let left = bts - (BIT_WIDTH - self.pos);
             let big = (self.current_val << (bts - left)) as $t;
             self.pos = left;
@@ -116,15 +118,16 @@ macro_rules! gen_read_unchecked {
 /// that there is enough data in the array left before using an unchecked function, else there will
 /// be undefined behavior.
 macro_rules! read {
-    ($current:expr,$t:ty,$end:expr) => {{
+    ($self:expr,$t:ty) => {{
         let mut data: $t = 0;
         let sz = ::std::mem::size_of::<$t>();
-        let len = ($end as usize) - ($current as usize);
-        if len > sz {
-            ::std::ptr::copy_nonoverlapping($current, &mut data as *mut $t as *mut u8, sz);
+        if $self.reads_left != 0 {
+            $self.reads_left -= 1;
+            ::std::ptr::copy_nonoverlapping($self.current, &mut data as *mut $t as *mut u8, sz);
             data.to_le()
         } else {
-            ::std::ptr::copy_nonoverlapping($current, &mut data as *mut $t as *mut u8, len);
+            let len = ($self.end as usize) - ($self.current as usize);
+            ::std::ptr::copy_nonoverlapping($self.current, &mut data as *mut $t as *mut u8, len);
             data.to_le()
         }
     }};
@@ -137,15 +140,19 @@ impl<'a> BitGet<'a> {
     pub fn new(data: &'a [u8]) -> BitGet<'a> {
         let current = data.as_ptr();
         let end = unsafe { data.as_ptr().add(data.len()) };
-        let current_val = unsafe { read!(current, u64, end) };
+        let reads_left = data.len() / BYTE_WIDTH;
 
-        BitGet {
+        let mut res = BitGet {
             pos: 0,
-            current_val,
+            current_val: 0,
             current,
             end,
+            reads_left,
             phantom: PhantomData,
-        }
+        };
+        
+        res.current_val = unsafe { read!(res, u64) };
+        res
     }
 
     gen_read!(read_u8, u8, read_u8_unchecked);
@@ -169,7 +176,7 @@ impl<'a> BitGet<'a> {
         let bts = ::std::mem::size_of::<u64>() * 8;
         let little = self.current_val >> self.pos;
         self.current = unsafe { self.current.add(BYTE_WIDTH) };
-        self.current_val = unsafe { read!(self.current, u64, self.end) };
+        self.current_val = unsafe { read!(self, u64) };
         let big = if self.pos == 0 {
             0
         } else {
@@ -194,7 +201,7 @@ impl<'a> BitGet<'a> {
         } else {
             let little = (self.current_val >> self.pos) as u32;
             self.current = unsafe { self.current.add(BYTE_WIDTH) };
-            self.current_val = unsafe { read!(self.current, u64, self.end) };
+            self.current_val = unsafe { read!(self, u64) };
             let left = bts - (BIT_WIDTH - self.pos);
             let big = ((self.current_val as u32) & BIT_MASKS[left]) << (bts - left);
             self.pos = left;
@@ -287,27 +294,31 @@ impl<'a> BitGet<'a> {
     /// ```
     #[inline]
     pub fn has_bits_remaining(&self, bits: usize) -> bool {
-        let diff = (self.end as usize) - (self.current as usize);
-        let bytes_requested = bits >> 3;
-        if diff > bytes_requested + BYTE_WIDTH {
+        if self.reads_left > bits {
             true
         } else {
-            // 0x38 = 32 | 24 | 16 | 8
-            let mid = self.pos & !0x38;
-            let pos_bytes = self.pos >> 3;
-            if mid == 0 {
-                let bytes_left = diff - pos_bytes;
-                if bytes_left == bytes_requested {
-                    bits & 0x7 == 0
-                } else {
-                    bytes_left > bytes_requested
-                }
+            let bytes_requested = bits >> 3;
+            if self.reads_left > bytes_requested {
+                true
             } else {
-                let whole_bytes_left = diff - pos_bytes - 1;
-                if whole_bytes_left == bytes_requested {
-                    (self.pos & 0x7) <= (8 - (bits & 0x7))
+                // 0x38 = 32 | 24 | 16 | 8
+                let mid = self.pos & !0x38;
+                let pos_bytes = self.pos >> 3;
+                let diff = (self.end as usize) - (self.current as usize);
+                if mid == 0 {
+                    let bytes_left = diff - pos_bytes;
+                    if bytes_left == bytes_requested {
+                        bits & 0x7 == 0
+                    } else {
+                        bytes_left > bytes_requested
+                    }
                 } else {
-                    whole_bytes_left > bytes_requested
+                    let whole_bytes_left = diff  - pos_bytes - 1;
+                    if whole_bytes_left == bytes_requested {
+                        (self.pos & 0x7) <= (8 - (bits & 0x7))
+                    } else {
+                        whole_bytes_left > bytes_requested
+                    }
                 }
             }
         }
@@ -433,7 +444,7 @@ impl<'a> BitGet<'a> {
             let res = Some(Cow::Borrowed(sl));
 
             self.current = unsafe { self.current.add(bytes as usize) };
-            self.current_val = unsafe { read!(self.current, u64, self.end) };
+            self.current_val = unsafe { read!(self, u64) };
             self.pos = 0;
             res
         } else {
