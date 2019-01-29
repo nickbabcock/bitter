@@ -97,7 +97,7 @@ macro_rules! gen_read_unchecked {
         } else {
             let little = (self.current_val >> self.pos) as $t;
             self.current = unsafe { self.current.add(BYTE_WIDTH) };
-            self.current_val = unsafe { read!(self.current, u64) };
+            self.current_val = unsafe { read!(self.current, u64, self.end) };
             let left = bts - (BIT_WIDTH - self.pos);
             let big = (self.current_val << (bts - left)) as $t;
             self.pos = left;
@@ -116,11 +116,17 @@ macro_rules! gen_read_unchecked {
 /// that there is enough data in the array left before using an unchecked function, else there will
 /// be undefined behavior.
 macro_rules! read {
-    ($current:expr,$t:ty) => {{
+    ($current:expr,$t:ty,$end:expr) => {{
         let mut data: $t = 0;
         let sz = ::std::mem::size_of::<$t>();
-        ::std::ptr::copy_nonoverlapping($current, &mut data as *mut $t as *mut u8, sz);
-        data.to_le()
+        let len = ($end as usize) - ($current as usize);
+        if len > sz {
+            ::std::ptr::copy_nonoverlapping($current, &mut data as *mut $t as *mut u8, sz);
+            data.to_le()
+        } else {
+            ::std::ptr::copy_nonoverlapping($current, &mut data as *mut $t as *mut u8, len);
+            data.to_le()
+        }
     }};
 }
 
@@ -129,11 +135,15 @@ const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 
 impl<'a> BitGet<'a> {
     pub fn new(data: &'a [u8]) -> BitGet<'a> {
+        let current = data.as_ptr();
+        let end = unsafe { data.as_ptr().add(data.len()) };
+        let current_val = unsafe { read!(current, u64, end) };
+
         BitGet {
             pos: 0,
-            current_val: unsafe { read!(data.as_ptr(), u64) },
-            current: data.as_ptr(),
-            end: unsafe { data.as_ptr().add(data.len()) },
+            current_val,
+            current,
+            end,
             phantom: PhantomData,
         }
     }
@@ -184,7 +194,7 @@ impl<'a> BitGet<'a> {
         } else {
             let little = (self.current_val >> self.pos) as u32;
             self.current = unsafe { self.current.add(BYTE_WIDTH) };
-            self.current_val = unsafe { read!(self.current, u64) };
+            self.current_val = unsafe { read!(self.current, u64, self.end) };
             let left = bts - (BIT_WIDTH - self.pos);
             let big = ((self.current_val as u32) & BIT_MASKS[left]) << (bts - left);
             self.pos = left;
@@ -277,17 +287,28 @@ impl<'a> BitGet<'a> {
     /// ```
     #[inline]
     pub fn has_bits_remaining(&self, bits: usize) -> bool {
-        let bytes_left = self.approx_bytes_remaining();
-        if bytes_left > bits {
+        let diff = (self.end as usize) - (self.current as usize);
+        let bytes_requested = bits >> 3;
+        if diff > bytes_requested + BYTE_WIDTH {
             true
         } else {
-            let bytes_requested = bits >> 3;
-            if bytes_left == bytes_requested {
-                // The conversion from bytes to bits here is safe from overflow,
-                // as the original `bits` fit in a usize just fine.
-                (bytes_left << 3) - (self.pos & 0x7) as usize >= bits
+            // 0x38 = 32 | 24 | 16 | 8
+            let mid = self.pos & !0x38;
+            let pos_bytes = self.pos >> 3;
+            if mid == 0 {
+                let bytes_left = diff - pos_bytes;
+                if bytes_left == bytes_requested {
+                    bits & 0x7 == 0
+                } else {
+                    bytes_left > bytes_requested
+                }
             } else {
-                bytes_left > bytes_requested
+                let whole_bytes_left = diff - pos_bytes - 1;
+                if whole_bytes_left == bytes_requested {
+                    (self.pos & 0x7) <= (8 - (bits & 0x7))
+                } else {
+                    whole_bytes_left > bytes_requested
+                }
             }
         }
     }
@@ -314,7 +335,7 @@ impl<'a> BitGet<'a> {
     /// ```
     #[inline]
     pub fn read_bit(&mut self) -> Option<bool> {
-        self.read_u32_bits(1).map(|x| x & 1 != 0)
+        self.read_u32_bits(1).map(|x| x != 0)
     }
 
     /// *Assumes* there is at least one bit left in the stream.
@@ -404,11 +425,17 @@ impl<'a> BitGet<'a> {
     pub fn read_bytes(&mut self, bytes: i32) -> Option<Cow<[u8]>> {
         let mid = if self.pos == 0 { 0 } else { 1 };
         let bytes_left = self.approx_bytes_remaining();
-        if bytes_left - mid < bytes as usize {
+        if bytes_left < (bytes as usize) + mid {
             None
         } else if mid == 0 {
-            let sl = unsafe { std::slice::from_raw_parts(self.current, bytes_left) };
-            Some(Cow::Borrowed(sl))
+            self.current = unsafe { self.current.add(self.pos >> 3) };
+            let sl = unsafe { std::slice::from_raw_parts(self.current, bytes as usize) };
+            let res = Some(Cow::Borrowed(sl));
+
+            self.current = unsafe { self.current.add(bytes as usize) };
+            self.current_val = unsafe { read!(self.current, u64, self.end) };
+            self.pos = 0;
+            res
         } else {
             let mut res = Vec::with_capacity(bytes as usize);
             for _ in 0..bytes {
@@ -603,6 +630,14 @@ mod tests {
     }
 
     #[test]
+    fn test_has_remaining_bits2() {
+        let mut bitter = BitGet::new(&[0xff, 0xff, 0xff, 0xff]);
+        assert!(bitter.read_u32_bits(31).is_some());
+        assert!(!bitter.has_bits_remaining(2));
+        assert!(bitter.has_bits_remaining(1));
+    }
+
+    #[test]
     fn test_16_bits_reads() {
         let mut bitter = BitGet::new(&[0b1010_1010, 0b0101_0101]);
         assert_eq!(bitter.read_u32_bits(16), Some(0b0101_0101_1010_1010));
@@ -646,6 +681,33 @@ mod tests {
             bitter.read_bytes(1).map(|x| x.into_owned()),
             Some(vec![0b1101_0101])
         );
+    }
+
+    #[test]
+    fn test_read_bytes2() {
+        let mut bitter = BitGet::new(&[]);
+        assert_eq!(bitter.read_bytes(1).map(|x| x.into_owned()), None);
+    }
+
+    #[test]
+    fn test_read_bytes3() {
+        let mut bitter = BitGet::new(&[0, 0]);
+        assert_eq!(bitter.read_bytes(1).map(|x| x.into_owned()).unwrap(), vec![0]);
+    }
+
+    #[test]
+    fn test_read_bytes4() {
+        let mut bitter = BitGet::new(&[0, 120]);
+        assert_eq!(bitter.read_bytes(1).map(|x| x.into_owned()).unwrap(), vec![0]);
+        assert_eq!(bitter.read_u8_unchecked(), 120);
+    }
+
+    #[test]
+    fn test_read_bytes5() {
+        let mut bitter = BitGet::new(&[119, 0, 120]);
+        assert_eq!(bitter.read_u32_bits_unchecked(8), 119);
+        assert_eq!(bitter.read_bytes(1).map(|x| x.into_owned()).unwrap(), vec![0]);
+        assert_eq!(bitter.read_u32_bits_unchecked(8), 120);
     }
 
     #[test]
@@ -925,5 +987,26 @@ mod tests {
         assert!(bitter.read_u32_bits(7).is_some());
         assert!(bitter.is_empty());
         assert_eq!(bitter.approx_bytes_remaining(), 0);
+    }
+
+    #[test]
+    fn regression1() {
+        let data = vec![0b0000_0010, 0b0011_1111, 0b1011_1100];
+        let mut bits = BitGet::new(data.as_slice());
+
+        assert_eq!(bits.read_u32_bits(3), Some(2));
+        assert_eq!(bits.read_u8(), Some(224));
+        assert_eq!(bits.read_bit(), Some(true));
+        assert_eq!(bits.read_u32_bits(13), None);
+    }
+
+    #[test]
+    fn regression2() {
+        let data = vec![2, 63, 63, 2, 63, 2, 0, 0, 0];
+        let mut bits = BitGet::new(data.as_slice());
+
+        assert_eq!(bits.read_u32_bits(3), Some(2));
+        assert_eq!(bits.read_u8(), Some(224));
+        assert_eq!(bits.read_u64(), None);
     }
 }
