@@ -1,4 +1,4 @@
-## 0.3.1 - Unreleased
+## 0.3.1 - 2019-01-30
 
 * In 0.3.0 a performance optimization was used that satisfied valgrind's memcheck but failed LLVM's AddressSanitizer with a heap-buffer-overflow despite the overflowed bytes never being acted upon. This optimization has been removed to increase bitter's friendliness.
 * Fix bug in `read_bytes`
