@@ -1,3 +1,9 @@
+## 0.3.1 - Unreleased
+
+* In 0.3.0 a performance optimization was used that satisfied valgrind's memcheck but failed LLVM's AddressSanitizer with a heap-buffer-overflow despite the overflowed bytes never being acted upon. This optimization has been removed to increase bitter's friendliness.
+* Fix bug in `read_bytes`
+* Fix bug in `has_bits_remaining`
+
 ## 0.3.0 - 2019-01-23
 
 - Breaking change: `bits_remaining` would exhibit overflow when the data was long enough that counting the number of bits (`data.len() * 8`) would overflow. The API has been changed to return `Option<usize>`. Prefer `has_bits_remaining` instead
