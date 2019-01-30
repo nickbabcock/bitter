@@ -193,15 +193,16 @@ impl<'a> BitGet<'a> {
     #[inline]
     pub fn read_u32_bits_unchecked(&mut self, bits: i32) -> u32 {
         let bts = bits as usize;
-        if self.pos < BIT_WIDTH - bts {
+        let new_pos = self.pos + bts;
+        if new_pos < BIT_WIDTH {
             let res = (self.current_val >> self.pos) & BitGet::bit_mask(bts);
-            self.pos += bts;
+            self.pos = new_pos;
             res as u32
         } else {
             let little = self.current_val >> self.pos;
             self.data = &self.data[BYTE_WIDTH..];
             self.current_val = self.read();
-            let left = bts - (BIT_WIDTH - self.pos);
+            let left = new_pos - BIT_WIDTH;
             let big = (self.current_val & BitGet::bit_mask(left)) << (bts - left);
             self.pos = left;
             (little + big) as u32
