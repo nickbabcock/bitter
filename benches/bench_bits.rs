@@ -78,7 +78,7 @@ fn bitting(c: &mut Criterion) {
             }
         })
     })
-    .throughput(|p| Throughput::Bytes(*p as u32 * ITER));
+    .throughput(|p| Throughput::Bytes((*p as u32 * ITER) / 8));
 
     c.bench("bit-reading", bench);
 }
@@ -118,7 +118,7 @@ fn eight_bits(c: &mut Criterion) {
             .read_u8()
             .map(u32::from)),
     )
-    .throughput(Throughput::Bytes(8 * ITER));
+    .throughput(Throughput::Bytes(ITER));
 
     c.bench("eight_bits", bench);
 }
@@ -132,7 +132,7 @@ fn sixtyfour_bits(c: &mut Criterion) {
         "bitter_byte_checked",
         ben!(BitGet::new(&DATA), |x: &mut BitGet| x.read_u64()),
     )
-    .throughput(Throughput::Bytes(8 * ITER));
+    .throughput(Throughput::Bytes(::std::mem::size_of::<u64>() as u32 * ITER));
 
     c.bench("sixtyfour_bits", bench);
 }
