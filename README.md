@@ -85,4 +85,4 @@ Since the chart lacks quotable numbers and is too dense to make an interpretatio
 
 ![bench-bit-table.png](assets/bench-bit-table.png)
 
-Interpretations remain the same, but now one can compare performance numbers in a quantifiable manner. I enjoy that bitter can consume 1 GB/s of data reading one bit at a time.
+Interpretations remain the same, but now one can compare performance numbers in a quantifiable manner.
