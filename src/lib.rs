@@ -90,37 +90,13 @@ macro_rules! gen_read_unchecked {
         } else {
             let little = (self.current_val >> self.pos) as $t;
             self.data = &self.data[BYTE_WIDTH..];
-            self.current_val = unsafe { read!(self, u64) };
+            self.current_val = self.read();
             let left = bts - (BIT_WIDTH - self.pos);
             let big = (self.current_val << (bts - left)) as $t;
             self.pos = left;
             little + big
         }
    });
-}
-
-/// An astute reader will note that this is a scary macro. While it is extremely similar to how the
-/// byteorder crate works, this macro can (and will most likely) load data past the end of the provided
-/// slice. For instance, if the provided data is only one byte in length and one commissons
-/// `BitGet::read_u8_unchecked()`, even though a single byte is requested, four bytes are loaded
-/// from the data. The only thing saving us from access violations and valgrind errors are upper
-/// bits being truncated and bit masks. Surprisingly enough valgrind recognizes this behavior and
-/// notes that any potential extra garbage loaded is not used. However, one still has to ensure
-/// that there is enough data in the array left before using an unchecked function, else there will
-/// be undefined behavior.
-macro_rules! read {
-    ($self:expr,$t:ty) => {{
-        let mut data: $t = 0;
-        let sz = ::std::mem::size_of::<$t>();
-        if $self.data.len() > sz {
-            ::std::ptr::copy_nonoverlapping($self.data.as_ptr(), &mut data as *mut $t as *mut u8, sz);
-            data.to_le()
-        } else {
-            let len = $self.data.len();
-            ::std::ptr::copy_nonoverlapping($self.data.as_ptr(), &mut data as *mut $t as *mut u8, len);
-            data.to_le()
-        }
-    }};
 }
 
 const BYTE_WIDTH: usize = ::std::mem::size_of::<u64>();
@@ -133,8 +109,8 @@ impl<'a> BitGet<'a> {
             current_val: 0,
             data,
         };
-        
-        res.current_val = unsafe { read!(res, u64) };
+
+        res.current_val = res.read();
         res
     }
 
@@ -154,30 +130,59 @@ impl<'a> BitGet<'a> {
     gen_read_unchecked!(read_u32_unchecked, u32);
     gen_read_unchecked!(read_i32_unchecked, i32);
 
+    /// Generates the bitmask for 32-bit integers (yes, even though the return type is u64)
     #[inline]
     fn bit_mask(bits: usize) -> u64 {
         debug_assert!(bits < ::std::mem::size_of::<u64>() * 8);
         (1 << bits) - 1
     }
 
+    /// Determines if our bit position is not byte aligned
     #[inline]
     fn is_mid_byte(&self) -> bool {
         // 0x38 = 32 | 24 | 16 | 8
         self.pos & !0x38 != 0
     }
 
+    /// Assuming that `self.data` is pointing to data not yet seen. slurp up 8 bytes or the
+    /// rest of the data (whatever is smaller)
+    #[inline]
+    fn read(&mut self) -> u64 {
+        let mut data: u64 = 0;
+        unsafe {
+            if self.data.len() > BYTE_WIDTH {
+                ::std::ptr::copy_nonoverlapping(
+                    self.data.as_ptr(),
+                    &mut data as *mut u64 as *mut u8,
+                    BYTE_WIDTH,
+                );
+                data.to_le()
+            } else {
+                let len = self.data.len();
+                ::std::ptr::copy_nonoverlapping(
+                    self.data.as_ptr(),
+                    &mut data as *mut u64 as *mut u8,
+                    len,
+                );
+                data.to_le()
+            }
+        }
+    }
+
     #[inline]
     pub fn read_u64_unchecked(&mut self) -> u64 {
+        // While reading 64bit we can take advantage of an optimization trick not available to
+        // other reads as 64bits is the same as our cache size
         let bts = ::std::mem::size_of::<u64>() * 8;
         let little = self.current_val >> self.pos;
         self.data = &self.data[BYTE_WIDTH..];
-        self.current_val = unsafe { read!(self, u64) };
-        let big = if self.pos == 0 {
-            0
+        self.current_val = self.read();
+        if self.pos == 0 {
+            little
         } else {
-            self.current_val << (bts - self.pos)
-        };
-        little + big
+            let big = self.current_val << (bts - self.pos);
+            little + big
+        }
     }
 
     #[inline]
@@ -195,7 +200,7 @@ impl<'a> BitGet<'a> {
         } else {
             let little = self.current_val >> self.pos;
             self.data = &self.data[BYTE_WIDTH..];
-            self.current_val = unsafe { read!(self, u64) };
+            self.current_val = self.read();
             let left = bts - (BIT_WIDTH - self.pos);
             let big = (self.current_val & BitGet::bit_mask(left)) << (bts - left);
             self.pos = left;
@@ -298,7 +303,7 @@ impl<'a> BitGet<'a> {
                         bytes_left > bytes_requested
                     }
                 } else {
-                    let whole_bytes_left = diff  - pos_bytes - 1;
+                    let whole_bytes_left = diff - pos_bytes - 1;
                     if whole_bytes_left == bytes_requested {
                         (self.pos & 0x7) <= (8 - (bits & 0x7))
                     } else {
@@ -427,7 +432,7 @@ impl<'a> BitGet<'a> {
             let res = Some(Cow::Borrowed(&self.data[pos_bytes..end]));
 
             self.data = &self.data[end..];
-            self.current_val = unsafe { read!(self, u64) };
+            self.current_val = self.read();
             self.pos = 0;
             res
         } else if bytes_left > bts {
@@ -652,13 +657,19 @@ mod tests {
     #[test]
     fn test_read_bytes3() {
         let mut bitter = BitGet::new(&[0, 0]);
-        assert_eq!(bitter.read_bytes(1).map(|x| x.into_owned()).unwrap(), vec![0]);
+        assert_eq!(
+            bitter.read_bytes(1).map(|x| x.into_owned()).unwrap(),
+            vec![0]
+        );
     }
 
     #[test]
     fn test_read_bytes4() {
         let mut bitter = BitGet::new(&[0, 120]);
-        assert_eq!(bitter.read_bytes(1).map(|x| x.into_owned()).unwrap(), vec![0]);
+        assert_eq!(
+            bitter.read_bytes(1).map(|x| x.into_owned()).unwrap(),
+            vec![0]
+        );
         assert_eq!(bitter.read_u8_unchecked(), 120);
     }
 
@@ -666,7 +677,10 @@ mod tests {
     fn test_read_bytes5() {
         let mut bitter = BitGet::new(&[119, 0, 120]);
         assert_eq!(bitter.read_u32_bits_unchecked(8), 119);
-        assert_eq!(bitter.read_bytes(1).map(|x| x.into_owned()).unwrap(), vec![0]);
+        assert_eq!(
+            bitter.read_bytes(1).map(|x| x.into_owned()).unwrap(),
+            vec![0]
+        );
         assert_eq!(bitter.read_u32_bits_unchecked(8), 120);
     }
 
