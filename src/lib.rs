@@ -146,18 +146,17 @@ impl<'a> BitGet<'a> {
 
     /// Assuming that `self.data` is pointing to data not yet seen. slurp up 8 bytes or the
     /// rest of the data (whatever is smaller)
+    ///
+    /// Clippy lint can be unsuppressed once Clippy recognizes this pattern as correct.
+    /// https://github.com/rust-lang/rust-clippy/issues/2881
+    #[allow(clippy::cast_ptr_alignment)]
     #[inline]
     fn read(&mut self) -> u64 {
-        let mut data: u64 = 0;
         unsafe {
             if self.data.len() > BYTE_WIDTH {
-                ::std::ptr::copy_nonoverlapping(
-                    self.data.as_ptr(),
-                    &mut data as *mut u64 as *mut u8,
-                    BYTE_WIDTH,
-                );
-                data.to_le()
+                ::std::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64).to_le()
             } else {
+                let mut data: u64 = 0;
                 let len = self.data.len();
                 ::std::ptr::copy_nonoverlapping(
                     self.data.as_ptr(),
