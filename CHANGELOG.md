@@ -1,3 +1,7 @@
+## 0.3.2 - 2019-05-23
+
+* A 10%-50% performance improvement to unchecked API (and checked APIs but to a lesser extent)
+
 ## 0.3.1 - 2019-01-30
 
 * In 0.3.0 a performance optimization was used that satisfied valgrind's memcheck but failed LLVM's AddressSanitizer with a heap-buffer-overflow despite the overflowed bytes never being acted upon. This optimization has been removed to increase bitter's friendliness.
