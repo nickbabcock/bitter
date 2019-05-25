@@ -23,6 +23,12 @@ fn read_bytes_eq(data: Vec<u8>) -> bool {
 }
 
 #[quickcheck]
+fn has_bits_remaining(data: Vec<u8>) -> bool {
+    let mut bits = bitter::BitGet::new(data.as_slice());
+    (1..32).all(|x| bits.has_bits_remaining(x) == bits.read_u32_bits(x as i32).is_some())
+}
+
+#[quickcheck]
 fn read_bytes_bits(data: Vec<u8>) -> bool {
     if data.len() <= 1 {
         return true;
