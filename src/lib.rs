@@ -64,17 +64,16 @@ pub struct BitGet<'a> {
 
     /// The eight bytes that current is pointing at
     current_val: u64,
+
+    last_read: bool,
 }
 
 macro_rules! gen_read {
-    ($name:ident, $t:ty, $which:ident) => (
+    ($name:ident, $t:ty) => (
     #[inline]
     pub fn $name(&mut self) -> Option<$t> {
-        if self.has_bits_remaining(::std::mem::size_of::<$t>() * 8) {
-            Some(self.$which())
-        } else {
-            None
-        }
+        let bits = (::std::mem::size_of::<$t>() * 8) as i32;
+        self.read_u32_bits(bits).map(|x| x as $t)
    });
 }
 
@@ -82,20 +81,8 @@ macro_rules! gen_read_unchecked {
     ($name:ident, $t:ty) => (
     #[inline]
     pub fn $name(&mut self) -> $t {
-        let bts = ::std::mem::size_of::<$t>() * 8;
-        if self.pos < BIT_WIDTH - bts {
-            let res = (self.current_val >> self.pos) as $t;
-            self.pos += bts;
-            res
-        } else {
-            let little = (self.current_val >> self.pos) as $t;
-            self.data = &self.data[BYTE_WIDTH..];
-            self.current_val = self.read();
-            let left = bts - (BIT_WIDTH - self.pos);
-            let big = (self.current_val << (bts - left)) as $t;
-            self.pos = left;
-            little + big
-        }
+        let bits = (::std::mem::size_of::<$t>() * 8) as i32;
+        self.read_u32_bits_unchecked(bits) as $t
    });
 }
 
@@ -108,20 +95,19 @@ impl<'a> BitGet<'a> {
             pos: 0,
             current_val: 0,
             data,
+            last_read: false,
         };
 
         res.current_val = res.read();
         res
     }
 
-    gen_read!(read_u8, u8, read_u8_unchecked);
-    gen_read!(read_i8, i8, read_i8_unchecked);
-    gen_read!(read_u16, u16, read_u16_unchecked);
-    gen_read!(read_i16, i16, read_i16_unchecked);
-    gen_read!(read_u32, u32, read_u32_unchecked);
-    gen_read!(read_i32, i32, read_i32_unchecked);
-    gen_read!(read_u64, u64, read_u64_unchecked);
-    gen_read!(read_i64, i64, read_i64_unchecked);
+    gen_read!(read_u8, u8);
+    gen_read!(read_i8, i8);
+    gen_read!(read_u16, u16);
+    gen_read!(read_i16, i16);
+    gen_read!(read_u32, u32);
+    gen_read!(read_i32, i32);
 
     gen_read_unchecked!(read_u8_unchecked, u8);
     gen_read_unchecked!(read_i8_unchecked, i8);
@@ -153,7 +139,7 @@ impl<'a> BitGet<'a> {
     #[inline]
     fn read(&mut self) -> u64 {
         unsafe {
-            if self.data.len() > BYTE_WIDTH {
+            if self.data.len() >= BYTE_WIDTH {
                 ::std::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64).to_le()
             } else {
                 let mut data: u64 = 0;
@@ -163,6 +149,7 @@ impl<'a> BitGet<'a> {
                     &mut data as *mut u64 as *mut u8,
                     len,
                 );
+                self.last_read = true;
                 data.to_le()
             }
         }
@@ -172,16 +159,50 @@ impl<'a> BitGet<'a> {
     pub fn read_u64_unchecked(&mut self) -> u64 {
         // While reading 64bit we can take advantage of an optimization trick not available to
         // other reads as 64bits is the same as our cache size
-        let bts = ::std::mem::size_of::<u64>() * 8;
-        let little = self.current_val >> self.pos;
-        self.data = &self.data[BYTE_WIDTH..];
-        self.current_val = self.read();
         if self.pos == 0 {
-            little
+            let result = self.current_val;
+            self.data = &self.data[BYTE_WIDTH..];
+            self.current_val = self.read();
+            result
         } else {
+            let bts = ::std::mem::size_of::<u64>() * 8;
+            let little = self.current_val >> self.pos;
+            self.data = &self.data[BYTE_WIDTH..];
+            self.current_val = self.read();
             let big = self.current_val << (bts - self.pos);
             little + big
         }
+    }
+
+    #[inline]
+    pub fn read_u64(&mut self) -> Option<u64> {
+        // While reading 64bit we can take advantage of an optimization trick not available to
+        // other reads as 64bits is the same as our cache size
+        if self.pos == 0 && !self.last_read {
+            let ret = self.current_val;
+            self.data = &self.data[BYTE_WIDTH..];
+            self.current_val = self.read();
+            Some(ret)
+        } else if !self.last_read {
+            let bts = ::std::mem::size_of::<u64>() * 8;
+            let new_data = &self.data[BYTE_WIDTH..];
+            if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
+                None
+            } else {
+                let little = self.current_val >> self.pos;
+                self.data = new_data;
+                self.current_val = self.read();
+                let big = self.current_val << (bts - self.pos);
+                Some(little + big)
+            }
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub fn read_i64(&mut self) -> Option<i64> {
+        self.read_u64().map(|x| x as i64)
     }
 
     #[inline]
@@ -210,8 +231,25 @@ impl<'a> BitGet<'a> {
 
     #[inline]
     pub fn read_u32_bits(&mut self, bits: i32) -> Option<u32> {
-        if self.has_bits_remaining(bits as usize) {
-            Some(self.read_u32_bits_unchecked(bits))
+        let bts = bits as usize;
+        let new_pos = self.pos + bts;
+        if (!self.last_read && new_pos < BIT_WIDTH) || (self.last_read && new_pos <= self.data.len() * 8) {
+            let res = (self.current_val >> self.pos) & BitGet::bit_mask(bts);
+            self.pos = new_pos;
+            Some(res as u32)
+        } else if !self.last_read {
+            let new_data = &self.data[BYTE_WIDTH..];
+            let left = new_pos - BIT_WIDTH;
+            if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {
+                None
+            } else {
+                let little = self.current_val >> self.pos;
+                self.data = new_data;
+                self.current_val = self.read();
+                let big = (self.current_val & BitGet::bit_mask(left)) << (bts - left);
+                self.pos = left;
+                Some((little + big) as u32)
+            }
         } else {
             None
         }
@@ -600,6 +638,14 @@ mod tests {
         assert!(bitter.read_u32_bits(31).is_some());
         assert!(!bitter.has_bits_remaining(2));
         assert!(bitter.has_bits_remaining(1));
+    }
+
+    #[test]
+    fn test_has_remaining_bits_bit_by_bit() {
+        let mut bitter = BitGet::new(&[0, 0, 0, 0, 0, 0, 0, 0]);
+        for _ in 0..200 {
+            assert!(bitter.has_bits_remaining(1), bitter.read_bit().is_some());
+        }
     }
 
     #[test]
