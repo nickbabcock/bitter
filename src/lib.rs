@@ -72,28 +72,8 @@ macro_rules! gen_read {
     ($name:ident, $t:ty) => (
     #[inline]
     pub fn $name(&mut self) -> Option<$t> {
-        let bts = ::std::mem::size_of::<$t>() * 8;
-        let new_pos = self.pos + bts;
-        if (!self.last_read && new_pos < BIT_WIDTH) || (self.last_read && new_pos <= self.data.len() * 8) {
-            let res = (self.current_val >> self.pos) & BitGet::bit_mask(bts);
-            self.pos = new_pos;
-            Some(res as $t)
-        } else if !self.last_read {
-            let new_data = &self.data[BYTE_WIDTH..];
-            let left = new_pos - BIT_WIDTH;
-            if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {
-                None
-            } else {
-                let little = self.current_val >> self.pos;
-                self.data = new_data;
-                self.current_val = self.read();
-                let big = (self.current_val & BitGet::bit_mask(left)) << (bts - left);
-                self.pos = left;
-                Some((little + big) as $t)
-            }
-        } else {
-            None
-        }
+        let bits = (::std::mem::size_of::<$t>() * 8) as i32;
+        self.read_u32_bits(bits).map(|x| x as $t)
    });
 }
 
@@ -101,20 +81,8 @@ macro_rules! gen_read_unchecked {
     ($name:ident, $t:ty) => (
     #[inline]
     pub fn $name(&mut self) -> $t {
-        let bts = ::std::mem::size_of::<$t>() * 8;
-        if self.pos < BIT_WIDTH - bts {
-            let res = (self.current_val >> self.pos) as $t;
-            self.pos += bts;
-            res
-        } else {
-            let little = (self.current_val >> self.pos) as $t;
-            self.data = &self.data[BYTE_WIDTH..];
-            self.current_val = self.read();
-            let left = bts - (BIT_WIDTH - self.pos);
-            let big = (self.current_val << (bts - left)) as $t;
-            self.pos = left;
-            little + big
-        }
+        let bits = (::std::mem::size_of::<$t>() * 8) as i32;
+        self.read_u32_bits_unchecked(bits) as $t
    });
 }
 
