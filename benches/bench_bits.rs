@@ -16,7 +16,7 @@ use std::io::Cursor;
 
 static DATA: [u8; 0x10_000] = [0; 0x10_000];
 
-const ITER: u32 = 1000;
+const ITER: u64 = 1000;
 
 fn bitting(c: &mut Criterion) {
     let parameters: Vec<i32> = (1..33).collect();
@@ -78,7 +78,7 @@ fn bitting(c: &mut Criterion) {
             }
         })
     })
-    .throughput(|p| Throughput::Bytes((*p as u32 * ITER) / 8));
+    .throughput(|p| Throughput::Bytes(((*p as u64) * ITER) / 8));
 
     c.bench("bit-reading", bench);
 }
@@ -132,7 +132,7 @@ fn sixtyfour_bits(c: &mut Criterion) {
         "bitter_byte_checked",
         ben!(BitGet::new(&DATA), |x: &mut BitGet| x.read_u64()),
     )
-    .throughput(Throughput::Bytes(::std::mem::size_of::<u64>() as u32 * ITER));
+    .throughput(Throughput::Bytes(::std::mem::size_of::<u64>() as u64 * ITER));
 
     c.bench("sixtyfour_bits", bench);
 }

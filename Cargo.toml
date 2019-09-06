@@ -14,7 +14,7 @@ name = "bench_bits"
 harness = false
 
 [dev-dependencies]
-criterion = "0.2"
+criterion = "0.3"
 bitreader = "0.3"
 bitstream-io = "0.6"
 nom = "4"
