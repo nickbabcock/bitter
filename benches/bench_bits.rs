@@ -72,7 +72,8 @@ fn bitting(c: &mut Criterion) {
             let mut d = &DATA[..];
             let mut pos = 0;
             for _ in 0..ITER {
-                let ((left, new_pos), _) = take_bits!((&d[..], pos), u32, *param as usize).unwrap();
+                let ((left, new_pos), _): ((&[u8], usize), u32) =
+                    take_bits!((&d[..], pos), *param as usize).unwrap();
                 pos = new_pos;
                 d = left;
             }
