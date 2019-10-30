@@ -152,6 +152,27 @@ fn remaining(c: &mut Criterion) {
     c.bench("remaining", bench);
 }
 
-criterion_group!(benches, bitting, eight_bits, sixtyfour_bits, remaining);
+fn read_bits_max(c: &mut Criterion) {
+    let bench = Benchmark::new("read_bits_max_checked", |b| {
+        b.iter(|| {
+            let mut bitter = BitGet::new(&DATA[..]);
+            for _ in 0..ITER {
+                black_box(bitter.read_bits_max(5, 22));
+            }
+        })
+    })
+    .with_function("read_bits_max_unchecked", |b| {
+        b.iter(|| {
+            let mut bitter = BitGet::new(&DATA[..]);
+            for _ in 0..ITER {
+                black_box(bitter.read_bits_max_unchecked(5, 22));
+            }
+        })
+    });
+
+    c.bench("read_bits_max", bench);
+}
+
+criterion_group!(benches, bitting, eight_bits, sixtyfour_bits, remaining, read_bits_max);
 
 criterion_main!(benches);
