@@ -491,9 +491,11 @@ impl<'a> BitGet<'a> {
     ///
     /// ```rust
     /// # use bitter::BitGet;
-    /// // Reads 5 bits or stops if the 5th bit would send the accumulator over 20
+    /// // Reads 5 bits or stops if the 5th bit could cause the result to reach or exceed the max
+    /// // value provided
     /// let mut bitter = BitGet::new(&[0b1111_1000]);
     /// assert_eq!(bitter.read_bits_max(5, 20), Some(8));
+    /// assert_eq!(bitter.read_bits_max(5, 20), Some(15));
     /// ```
     #[inline]
     pub fn read_bits_max(&mut self, bits: i32, max: i32) -> Option<u32> {
@@ -515,9 +517,11 @@ impl<'a> BitGet<'a> {
     ///
     /// ```rust
     /// # use bitter::BitGet;
-    /// // Reads 5 bits or stops if the 5th bit would send the accumulator over 20
+    /// // Reads 5 bits or stops if the 5th bit could cause the result to reach or exceed the max
+    /// // value provided
     /// let mut bitter = BitGet::new(&[0b1111_1000]);
-    /// assert_eq!(bitter.read_bits_max(5, 20), Some(8));
+    /// assert_eq!(bitter.read_bits_max_unchecked(5, 20), 8);
+    /// assert_eq!(bitter.read_bits_max_unchecked(5, 20), 15);
     /// ```
     #[inline]
     pub fn read_bits_max_unchecked(&mut self, bits: i32, max: i32) -> u32 {
@@ -949,24 +953,40 @@ mod tests {
     fn test_max_read() {
         let mut bitter = BitGet::new(&[0b1111_1000]);
         assert_eq!(bitter.read_bits_max(5, 20), Some(8));
+        assert_eq!(bitter.read_bits_max(5, 20), Some(15));
+        assert_eq!(bitter.read_bits_max(5, 20), None);
 
         let mut bitter = BitGet::new(&[0b1111_0000]);
         assert_eq!(bitter.read_bits_max(5, 20), Some(16));
+        assert_eq!(bitter.read_bits_max(5, 20), None);
 
         let mut bitter = BitGet::new(&[0b1110_0010]);
         assert_eq!(bitter.read_bits_max(5, 20), Some(2));
+
+        let mut bitter = BitGet::new(&[0b0001_0100]);
+        assert_eq!(bitter.read_bits_max(5, 20), Some(4));
+
+        let mut bitter = BitGet::new(&[0b0001_0011]);
+        assert_eq!(bitter.read_bits_max(5, 20), Some(19));
     }
 
     #[test]
     fn test_max_read_unchecked() {
         let mut bitter = BitGet::new(&[0b1111_1000]);
         assert_eq!(bitter.read_bits_max_unchecked(5, 20), 8);
+        assert_eq!(bitter.read_bits_max_unchecked(5, 20), 15);
 
         let mut bitter = BitGet::new(&[0b1111_0000]);
         assert_eq!(bitter.read_bits_max_unchecked(5, 20), 16);
 
         let mut bitter = BitGet::new(&[0b1110_0010]);
         assert_eq!(bitter.read_bits_max_unchecked(5, 20), 2);
+
+        let mut bitter = BitGet::new(&[0b0001_0100]);
+        assert_eq!(bitter.read_bits_max_unchecked(5, 20), 4);
+
+        let mut bitter = BitGet::new(&[0b0001_0011]);
+        assert_eq!(bitter.read_bits_max_unchecked(5, 20), 19);
     }
 
     #[test]
