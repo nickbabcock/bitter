@@ -324,29 +324,25 @@ impl<'a> BitGet<'a> {
     /// ```
     #[inline]
     pub fn has_bits_remaining(&self, bits: usize) -> bool {
-        if self.data.len() > bits + BIT_WIDTH {
+        let bytes_requested = bits >> 3;
+        if self.data.len() > bytes_requested + BYTE_WIDTH {
             true
         } else {
-            let bytes_requested = bits >> 3;
-            if self.data.len() > bytes_requested + BYTE_WIDTH {
-                true
-            } else {
-                let pos_bytes = self.pos >> 3;
-                let diff = self.data.len();
-                if !self.is_mid_byte() {
-                    let bytes_left = diff - pos_bytes;
-                    if bytes_left == bytes_requested {
-                        bits & 0x7 == 0
-                    } else {
-                        bytes_left > bytes_requested
-                    }
+            let pos_bytes = self.pos >> 3;
+            let diff = self.data.len();
+            if !self.is_mid_byte() {
+                let bytes_left = diff - pos_bytes;
+                if bytes_left == bytes_requested {
+                    bits & 0x7 == 0
                 } else {
-                    let whole_bytes_left = diff - pos_bytes - 1;
-                    if whole_bytes_left == bytes_requested {
-                        (self.pos & 0x7) <= (8 - (bits & 0x7))
-                    } else {
-                        whole_bytes_left > bytes_requested
-                    }
+                    bytes_left > bytes_requested
+                }
+            } else {
+                let whole_bytes_left = diff - pos_bytes - 1;
+                if whole_bytes_left == bytes_requested {
+                    (self.pos & 0x7) <= (8 - (bits & 0x7))
+                } else {
+                    whole_bytes_left > bytes_requested
                 }
             }
         }
@@ -1027,6 +1023,13 @@ mod tests {
         assert!(bitter.read_u32_bits(7).is_some());
         assert!(bitter.is_empty());
         assert_eq!(bitter.approx_bytes_remaining(), 0);
+    }
+
+    #[test]
+    fn has_bits_remaining_max() {
+        let data = vec![];
+        let bits = BitGet::new(data.as_slice());
+        assert_eq!(false, bits.has_bits_remaining(usize::max_value()));
     }
 
     #[test]
