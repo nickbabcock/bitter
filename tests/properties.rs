@@ -53,13 +53,13 @@ fn read_bytes_bits(data: Vec<u8>) -> bool {
 #[quickcheck]
 fn v1_eq(data: Vec<u8>) -> bool {
     let mut bits = bitter::BitGet::new(data.as_slice());
-    let mut bitsv1 = bitter::BitGet::new(data.as_slice());
+    let mut bitsv1 = bitterv1::BitGet::new(data.as_slice());
 
     bits.read_u32_bits(3) == bitsv1.read_u32_bits(3)
         && bits.read_u8() == bitsv1.read_u8()
         && bits.read_bits_max(5, 20) == bitsv1.read_bits_max(5, 20)
         && bits.read_bit() == bitsv1.read_bit()
-        && bits.read_bytes(3) == bitsv1.read_bytes(3)
+        && bits.read_bytes(3).map(|x| x.into_owned()) == bitsv1.read_bytes(3)
         && bits.read_u32_bits(13) == bitsv1.read_u32_bits(13)
         && bits.read_u8() == bitsv1.read_u8()
 }
