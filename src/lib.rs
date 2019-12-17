@@ -54,6 +54,17 @@
 
 use std::borrow::Cow;
 
+/// Calculates the width of the input in bits
+///
+/// ```rust
+/// assert_eq!(bitter::bit_width(20), 5);
+/// assert_eq!(bitter::bit_width(0), 0);
+/// assert_eq!(bitter::bit_width(u32::max_value()), 32);
+/// ```
+pub const fn bit_width(input: u32) -> u32 {
+    (std::mem::size_of::<u32>() as u32) * 8 - input.leading_zeros()
+}
+
 /// Reads little-endian bits platform agonistically from a slice of byte data.
 pub struct BitGet<'a> {
     /// The bit position in `current` that we are at
@@ -480,24 +491,42 @@ impl<'a> BitGet<'a> {
         }
     }
 
-    /// Reads a value that takes up at most `bits` bits and doesn't exceed `max`. This function
-    /// *assumes* that `max` has the same bitwidth as `bits`. It doesn't make sense to call this
-    /// function `bits = 8` and `max = 30`, you'd change your argument to `bits = 5`. If `bits` are
-    /// not available return `None`
+    /// Reads a value from the stream that consumes the same or fewer number of bits of a given
+    /// max. The value read will always be less than the given max.
+    ///
+    /// For example if one wants to read a value that is less than 20, bitter will read at least
+    /// 4 bits from the stream. If the 5th bit would cause the accumulator to exceed the max, the
+    /// 5th bit is not consumed. Else the 5th bit is consumed and added to accumulator. If the
+    /// necessary number of bits are not available, `None` is returned.
     ///
     /// ```rust
     /// # use bitter::BitGet;
-    /// // Reads 5 bits or stops if the 5th bit could cause the result to reach or exceed the max
-    /// // value provided
     /// let mut bitter = BitGet::new(&[0b1111_1000]);
-    /// assert_eq!(bitter.read_bits_max(5, 20), Some(8));
-    /// assert_eq!(bitter.read_bits_max(5, 20), Some(15));
+    /// assert_eq!(bitter.read_bits_max(20), Some(8));
+    /// assert_eq!(bitter.read_bits_max(20), Some(15));
     /// ```
     #[inline]
-    pub fn read_bits_max(&mut self, bits: i32, max: i32) -> Option<u32> {
-        self.read_u32_bits(bits - 1).and_then(|data| {
-            let max = max as u32;
-            let up = data + (1 << (bits - 1));
+    pub fn read_bits_max(&mut self, max: u32) -> Option<u32> {
+        let bits = bit_width(max) as i32 - 1;
+        self.read_bits_max_computed(std::cmp::max(bits, 0), max)
+    }
+
+    /// Same as `read_bits_max` except that this function accepts the already computed number of
+    /// bits to at least read. For instance, if 20 is the max, then 4 bits are at least needed.
+    ///
+    /// In general, prefer `read_bits_max` for ease of use
+    ///
+    /// ```rust
+    /// # use bitter::BitGet;
+    /// let mut bitter = BitGet::new(&[0b1111_1000]);
+    /// assert_eq!(bitter.read_bits_max_computed(4, 20), Some(8));
+    /// assert_eq!(bitter.read_bits_max_computed(4, 20), Some(15));
+    /// ```
+    #[inline]
+    pub fn read_bits_max_computed(&mut self, bits: i32, max: u32) -> Option<u32> {
+        debug_assert!(std::cmp::max(bit_width(max) as i32, 1) == bits + 1);
+        self.read_u32_bits(bits).and_then(|data| {
+            let up = data + (1 << bits);
             if up >= max {
                 Some(data)
             } else {
@@ -507,25 +536,44 @@ impl<'a> BitGet<'a> {
         })
     }
 
-    /// Reads a value that takes up at most `bits` bits and doesn't exceed `max`. This function
-    /// *assumes* that `max` has the same bitwidth as `bits`. It doesn't make sense to call this
-    /// function `bits = 8` and `max = 30`, you'd change your argument to `bits = 5`
+    /// Reads a value from the stream that consumes the same or fewer number of bits of a given
+    /// max. The value read will always be less than the given max.
+    ///
+    /// For example if one wants to read a value that is less than 20, bitter will read at least
+    /// 4 bits from the stream. If the 5th bit would cause the accumulator to exceed the max, the
+    /// 5th bit is not consumed. Else the 5th bit is consumed and added to accumulator.
     ///
     /// ```rust
     /// # use bitter::BitGet;
-    /// // Reads 5 bits or stops if the 5th bit could cause the result to reach or exceed the max
-    /// // value provided
     /// let mut bitter = BitGet::new(&[0b1111_1000]);
-    /// assert_eq!(bitter.read_bits_max_unchecked(5, 20), 8);
-    /// assert_eq!(bitter.read_bits_max_unchecked(5, 20), 15);
+    /// assert_eq!(bitter.read_bits_max_unchecked(20), 8);
+    /// assert_eq!(bitter.read_bits_max_unchecked(20), 15);
     /// ```
     #[inline]
-    pub fn read_bits_max_unchecked(&mut self, bits: i32, max: i32) -> u32 {
-        let data = self.read_u32_bits_unchecked(bits - 1);
-        let max = max as u32;
+    pub fn read_bits_max_unchecked(&mut self, max: u32) -> u32 {
+        let bits = bit_width(max) as i32 - 1;
+        self.read_bits_max_computed_unchecked(std::cmp::max(bits, 0), max)
+    }
+
+    /// Same as `read_bits_max_unchecked` except that this function accepts the already computed
+    /// number of bits to at least read. For instance, if 20 is the max, then 4 bits are at least
+    /// needed.
+    ///
+    /// In general, prefer `read_bits_max_unchecked` for ease of use
+    ///
+    /// ```rust
+    /// # use bitter::BitGet;
+    /// let mut bitter = BitGet::new(&[0b1111_1000]);
+    /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 8);
+    /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 15);
+    /// ```
+    #[inline]
+    pub fn read_bits_max_computed_unchecked(&mut self, bits: i32, max: u32) -> u32 {
+        debug_assert!(std::cmp::max(bit_width(max) as i32, 1) == bits + 1);
+        let data = self.read_u32_bits_unchecked(bits);
 
         // If the next bit is on, what would our value be
-        let up = data + (1 << (bits - 1));
+        let up = data + (1 << bits);
 
         // If we have the potential to equal or exceed max don't read the next bit, else read the
         // next bit
@@ -539,7 +587,7 @@ impl<'a> BitGet<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::BitGet;
+    use super::{BitGet, bit_width};
 
     #[test]
     fn test_bit_reads() {
@@ -946,43 +994,119 @@ mod tests {
     }
 
     #[test]
+    fn test_bit_width() {
+        assert_eq!(0, bit_width(0));
+        assert_eq!(1, bit_width(1));
+        assert_eq!(2, bit_width(2));
+        assert_eq!(2, bit_width(3));
+        assert_eq!(3, bit_width(4));
+        assert_eq!(5, bit_width(16));
+        assert_eq!(5, bit_width(20));
+        assert_eq!(32, bit_width(u32::max_value()));
+    }
+
+    #[test]
     fn test_max_read() {
         let mut bitter = BitGet::new(&[0b1111_1000]);
-        assert_eq!(bitter.read_bits_max(5, 20), Some(8));
-        assert_eq!(bitter.read_bits_max(5, 20), Some(15));
-        assert_eq!(bitter.read_bits_max(5, 20), None);
+        assert_eq!(bitter.read_bits_max(20), Some(8));
+        assert_eq!(bitter.read_bits_max(20), Some(15));
+        assert_eq!(bitter.read_bits_max(20), None);
 
         let mut bitter = BitGet::new(&[0b1111_0000]);
-        assert_eq!(bitter.read_bits_max(5, 20), Some(16));
-        assert_eq!(bitter.read_bits_max(5, 20), None);
+        assert_eq!(bitter.read_bits_max(20), Some(16));
+        assert_eq!(bitter.read_bits_max(20), None);
 
         let mut bitter = BitGet::new(&[0b1110_0010]);
-        assert_eq!(bitter.read_bits_max(5, 20), Some(2));
+        assert_eq!(bitter.read_bits_max(20), Some(2));
 
         let mut bitter = BitGet::new(&[0b0001_0100]);
-        assert_eq!(bitter.read_bits_max(5, 20), Some(4));
+        assert_eq!(bitter.read_bits_max(20), Some(4));
 
         let mut bitter = BitGet::new(&[0b0001_0011]);
-        assert_eq!(bitter.read_bits_max(5, 20), Some(19));
+        assert_eq!(bitter.read_bits_max(20), Some(19));
+
+        let mut bitter = BitGet::new(&[0b0001_0011]);
+        assert_eq!(bitter.read_bits_max(0), Some(0));
+
+        let mut bitter = BitGet::new(&[0xff, 0xff, 0xff, 0xff]);
+        assert_eq!(bitter.read_bits_max(u32::max_value()), Some(0x7fff_ffff));
+    }
+
+    #[test]
+    fn test_max_read_computed() {
+        let mut bitter = BitGet::new(&[0b1111_1000]);
+        assert_eq!(bitter.read_bits_max_computed(4, 20), Some(8));
+        assert_eq!(bitter.read_bits_max_computed(4, 20), Some(15));
+        assert_eq!(bitter.read_bits_max_computed(4, 20), None);
+
+        let mut bitter = BitGet::new(&[0b1111_0000]);
+        assert_eq!(bitter.read_bits_max_computed(4, 20), Some(16));
+        assert_eq!(bitter.read_bits_max_computed(4, 20), None);
+
+        let mut bitter = BitGet::new(&[0b1110_0010]);
+        assert_eq!(bitter.read_bits_max_computed(4, 20), Some(2));
+
+        let mut bitter = BitGet::new(&[0b0001_0100]);
+        assert_eq!(bitter.read_bits_max_computed(4, 20), Some(4));
+
+        let mut bitter = BitGet::new(&[0b0001_0011]);
+        assert_eq!(bitter.read_bits_max_computed(4, 20), Some(19));
+
+        let mut bitter = BitGet::new(&[0b0001_0011]);
+        assert_eq!(bitter.read_bits_max_computed(0, 00), Some(0));
+
+        let mut bitter = BitGet::new(&[0xff, 0xff, 0xff, 0xff]);
+        assert_eq!(bitter.read_bits_max_computed(31, u32::max_value()), Some(0x7fff_ffff));
     }
 
     #[test]
     fn test_max_read_unchecked() {
         let mut bitter = BitGet::new(&[0b1111_1000]);
-        assert_eq!(bitter.read_bits_max_unchecked(5, 20), 8);
-        assert_eq!(bitter.read_bits_max_unchecked(5, 20), 15);
+        assert_eq!(bitter.read_bits_max_unchecked(20), 8);
+        assert_eq!(bitter.read_bits_max_unchecked(20), 15);
 
         let mut bitter = BitGet::new(&[0b1111_0000]);
-        assert_eq!(bitter.read_bits_max_unchecked(5, 20), 16);
+        assert_eq!(bitter.read_bits_max_unchecked(20), 16);
 
         let mut bitter = BitGet::new(&[0b1110_0010]);
-        assert_eq!(bitter.read_bits_max_unchecked(5, 20), 2);
+        assert_eq!(bitter.read_bits_max_unchecked(20), 2);
 
         let mut bitter = BitGet::new(&[0b0001_0100]);
-        assert_eq!(bitter.read_bits_max_unchecked(5, 20), 4);
+        assert_eq!(bitter.read_bits_max_unchecked(20), 4);
 
         let mut bitter = BitGet::new(&[0b0001_0011]);
-        assert_eq!(bitter.read_bits_max_unchecked(5, 20), 19);
+        assert_eq!(bitter.read_bits_max_unchecked(20), 19);
+
+        let mut bitter = BitGet::new(&[0b0001_0011]);
+        assert_eq!(bitter.read_bits_max_unchecked(0), 0);
+
+        let mut bitter = BitGet::new(&[0xff, 0xff, 0xff, 0xff]);
+        assert_eq!(bitter.read_bits_max_unchecked(u32::max_value()), 0x7fff_ffff);
+    }
+
+    #[test]
+    fn test_max_read_unchecked_computed() {
+        let mut bitter = BitGet::new(&[0b1111_1000]);
+        assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 8);
+        assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 15);
+
+        let mut bitter = BitGet::new(&[0b1111_0000]);
+        assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 16);
+
+        let mut bitter = BitGet::new(&[0b1110_0010]);
+        assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 2);
+
+        let mut bitter = BitGet::new(&[0b0001_0100]);
+        assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 4);
+
+        let mut bitter = BitGet::new(&[0b0001_0011]);
+        assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 19);
+
+        let mut bitter = BitGet::new(&[0b0001_0011]);
+        assert_eq!(bitter.read_bits_max_computed_unchecked(0, 0), 0);
+
+        let mut bitter = BitGet::new(&[0xff, 0xff, 0xff, 0xff]);
+        assert_eq!(bitter.read_bits_max_computed_unchecked(31, u32::max_value()), 0x7fff_ffff);
     }
 
     #[test]
