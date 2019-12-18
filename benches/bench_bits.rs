@@ -157,7 +157,23 @@ fn read_bits_max(c: &mut Criterion) {
         b.iter(|| {
             let mut bitter = BitGet::new(&DATA[..]);
             for _ in 0..ITER {
-                black_box(bitter.read_bits_max(5, 22));
+                black_box(bitter.read_bits_max(22));
+            }
+        })
+    })
+    .with_function("read_bits_max_computed", |b| {
+        b.iter(|| {
+            let mut bitter = BitGet::new(&DATA[..]);
+            for _ in 0..ITER {
+                black_box(bitter.read_bits_max_computed(4, 22));
+            }
+        })
+    })
+    .with_function("read_bits_max_computed_unchecked", |b| {
+        b.iter(|| {
+            let mut bitter = BitGet::new(&DATA[..]);
+            for _ in 0..ITER {
+                black_box(bitter.read_bits_max_computed_unchecked(4, 22));
             }
         })
     })
@@ -165,7 +181,7 @@ fn read_bits_max(c: &mut Criterion) {
         b.iter(|| {
             let mut bitter = BitGet::new(&DATA[..]);
             for _ in 0..ITER {
-                black_box(bitter.read_bits_max_unchecked(5, 22));
+                black_box(bitter.read_bits_max_unchecked(22));
             }
         })
     });
@@ -173,6 +189,14 @@ fn read_bits_max(c: &mut Criterion) {
     c.bench("read_bits_max", bench);
 }
 
-criterion_group!(benches, bitting, eight_bits, sixtyfour_bits, remaining, read_bits_max);
+fn bit_width(c: &mut Criterion) {
+    let bench = Benchmark::new("bit_width", |b| {
+        b.iter(|| bitter::bit_width(black_box(20)))
+    });
+
+    c.bench("remaining", bench);
+}
+
+criterion_group!(benches, bitting, eight_bits, sixtyfour_bits, remaining, read_bits_max, bit_width);
 
 criterion_main!(benches);
