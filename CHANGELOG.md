@@ -1,3 +1,41 @@
+## 0.4.0 - 2019-12-17
+
+Fix has_bits_remaining at max value to avoid overflow
+ 
+The read_bits_max function is now split into two halves:
+
+- `read_bits_max` which takes one fewer argument
+- `read_bits_max_computed` which takes the same arguments but the bits
+
+argument should now be one less.
+
+The first justification is that
+
+```
+bits.read_bits_max(100);
+```
+
+reads better than
+
+```
+bits.read_bits_max(7, 100);
+```
+
+It's less prone to error. If one were to use the new API with the
+incorrect bit width, a debug assertion will fail. Using the single
+argument, `read_bits_max`, one can't call it incorrectly.
+
+If one already has the bit width of the max value alread calculated then
+use the `read_bits_max_computed` function. Keep in mind it has to
+satisfy:
+
+```
+max(bit_width(max), 1) == bits + 1);
+```
+
+The new APIs and assertions fix a potential underflow when 0 is the max
+to value read.
+
 ## 0.3.2 - 2019-05-23
 
 * A 10%-50% performance improvement to unchecked API (and checked APIs but to a lesser extent)
