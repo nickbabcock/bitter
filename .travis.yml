@@ -6,10 +6,6 @@ language: rust
 services: docker
 sudo: required
 
-env:
-  global:
-    - CRATE_NAME=rrrocket
-
 matrix:
   include:
     # Linux
