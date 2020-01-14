@@ -2,7 +2,6 @@
 environment:
   global:
     RUST_VERSION: stable
-    CRATE_NAME: dness
   matrix:
     - TARGET: x86_64-pc-windows-msvc
     - TARGET: x86_64-pc-windows-msvc
