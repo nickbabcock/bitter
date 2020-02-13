@@ -1157,6 +1157,30 @@ mod tests {
     }
 
     #[test]
+    fn i16_test() {
+        let data = [0b1111_1111, 0b1111_1111];
+        let mut bits = BitGet::new(&data[..]);
+
+        assert_eq!(bits.read_i16(), Some(i16::from_le_bytes(data)));
+    }
+
+    #[test]
+    fn i16_min_test() {
+        let data = [0b0000_0000, 0b1000_0000];
+        let mut bits = BitGet::new(&data[..]);
+
+        assert_eq!(bits.read_i16(), Some(std::i16::MIN));
+    }
+
+    #[test]
+    fn i16_max_test() {
+        let data = [0b1111_1111, 0b0111_1111];
+        let mut bits = BitGet::new(&data[..]);
+
+        assert_eq!(bits.read_i16(), Some(std::i16::MAX));
+    }
+
+    #[test]
     fn regression1() {
         let data = vec![0b0000_0010, 0b0011_1111, 0b1011_1100];
         let mut bits = BitGet::new(data.as_slice());
