@@ -9,6 +9,10 @@ keywords = ["bitstream", "little-endian", "binary"]
 categories = ["parsing"]
 license = "MIT"
 
+[profile.bench]
+lto = true
+codegen-units = 1
+
 [[bench]]
 name = "bench_bits"
 harness = false
