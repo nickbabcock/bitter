@@ -8,6 +8,7 @@ readme = "README.md"
 keywords = ["bitstream", "little-endian", "binary"]
 categories = ["parsing"]
 license = "MIT"
+include = ["src/**/*.rs", "benches"]
 
 [profile.bench]
 lto = true
