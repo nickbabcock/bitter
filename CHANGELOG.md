@@ -5,9 +5,7 @@ Fix has_bits_remaining at max value to avoid overflow
 The read_bits_max function is now split into two halves:
 
 - `read_bits_max` which takes one fewer argument
-- `read_bits_max_computed` which takes the same arguments but the bits
-
-argument should now be one less.
+- `read_bits_max_computed` which takes the same arguments but the bits argument should now be one less.
 
 The first justification is that
 
