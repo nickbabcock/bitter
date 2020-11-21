@@ -1,6 +1,6 @@
 [package]
 name = "bitter"
-version = "0.4.1"
+version = "0.4.2-pre"
 authors = ["Nick Babcock <nbabcock19@hotmail.com>"]
 description = "Swiftly extracts unaligned bit-level data from a byte slice"
 repository = "https://github.com/nickbabcock/bitter"
