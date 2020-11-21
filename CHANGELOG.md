@@ -1,3 +1,7 @@
+## 0.4.1 - 2020-11-21
+
+Maintenance release that trims down the number of files in crate so that the download size is smaller
+
 ## 0.4.0 - 2019-12-17
 
 Fix has_bits_remaining at max value to avoid overflow
