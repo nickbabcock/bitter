@@ -52,8 +52,6 @@
 //! # }
 //! ```
 
-use std::borrow::Cow;
-
 /// Calculates the width of the input in bits
 ///
 /// ```rust
@@ -458,36 +456,35 @@ impl<'a> BitGet<'a> {
         }
     }
 
-    /// If the number of requested bytes are available return them to the client. Since the current
-    /// bit position may not be byte aligned, all bytes requested may need to be shifted
-    /// appropriately.
+    /// Read the number of bytes needed to fill the provided buffer. Returns whether
+    /// the read was successful and the buffer has been filled.
     ///
     /// ```rust
     /// # use bitter::BitGet;
     /// let mut bitter = BitGet::new(&[0b1010_1010, 0b0101_0101]);
+    /// let mut buf = [0; 1];
     /// assert_eq!(bitter.read_bit_unchecked(), false);
-    /// assert_eq!(bitter.read_bytes(1).map(|x| x[0]), Some(0b1101_0101));
+    /// assert!(bitter.read_bytes(&mut buf));
+    /// assert_eq!(&buf, &[0b1101_0101]);
     /// ```
-    pub fn read_bytes(&mut self, bytes: i32) -> Option<Cow<[u8]>> {
-        let bts = bytes as usize;
+    pub fn read_bytes(&mut self, buf: &mut [u8]) -> bool {
         let pos_bytes = self.pos >> 3;
         let bytes_left = self.data.len() - pos_bytes;
-        if !self.is_mid_byte() && bytes_left >= bts {
-            let end = pos_bytes + bts;
-            let res = Some(Cow::Borrowed(&self.data[pos_bytes..end]));
-
+        if !self.is_mid_byte() && bytes_left >= buf.len() {
+            let end = pos_bytes + buf.len();
+            buf.copy_from_slice(&self.data[pos_bytes..end]);
             self.data = &self.data[end..];
             self.current_val = self.read();
             self.pos = 0;
-            res
-        } else if bytes_left > bts {
-            let mut res = Vec::with_capacity(bts);
-            for _ in 0..bytes {
-                res.push(self.read_u8_unchecked());
+            true
+        } else if bytes_left > buf.len() {
+            for b in buf.iter_mut() {
+                *b = self.read_u8_unchecked();
             }
-            Some(Cow::Owned(res))
+
+            true
         } else {
-            None
+            false
         }
     }
 
@@ -727,43 +724,38 @@ mod tests {
 
     #[test]
     fn test_read_bytes() {
+        let mut buf = [0u8; 2];
         let mut bitter = BitGet::new(&[0b1010_1010, 0b0101_0101]);
-        assert_eq!(
-            bitter.read_bytes(2).map(|x| x.into_owned()),
-            Some(vec![0b1010_1010, 0b0101_0101])
-        );
+        assert!(bitter.read_bytes(&mut buf));
+        assert_eq!(&buf, &[0b1010_1010, 0b0101_0101]);
 
         let mut bitter = BitGet::new(&[0b1010_1010, 0b0101_0101]);
         assert_eq!(bitter.read_bit_unchecked(), false);
-        assert_eq!(bitter.read_bytes(2), None);
-        assert_eq!(
-            bitter.read_bytes(1).map(|x| x.into_owned()),
-            Some(vec![0b1101_0101])
-        );
+        assert!(!bitter.read_bytes(&mut buf));
+        assert!(bitter.read_bytes(&mut buf[0..1]));
+        assert_eq!(&buf[0..1], &[0b1101_0101]);
     }
 
     #[test]
     fn test_read_bytes2() {
         let mut bitter = BitGet::new(&[]);
-        assert_eq!(bitter.read_bytes(1).map(|x| x.into_owned()), None);
+        assert!(bitter.read_bytes(&mut []));
     }
 
     #[test]
     fn test_read_bytes3() {
         let mut bitter = BitGet::new(&[0, 0]);
-        assert_eq!(
-            bitter.read_bytes(1).map(|x| x.into_owned()).unwrap(),
-            vec![0]
-        );
+        let mut buf = [0u8; 1];
+        assert!(bitter.read_bytes(&mut buf));
+        assert_eq!(&buf, &[0]);
     }
 
     #[test]
     fn test_read_bytes4() {
         let mut bitter = BitGet::new(&[0, 120]);
-        assert_eq!(
-            bitter.read_bytes(1).map(|x| x.into_owned()).unwrap(),
-            vec![0]
-        );
+        let mut buf = [0u8; 1];
+        assert!(bitter.read_bytes(&mut buf));
+        assert_eq!(&buf, &[0]);
         assert_eq!(bitter.read_u8_unchecked(), 120);
     }
 
@@ -771,10 +763,9 @@ mod tests {
     fn test_read_bytes5() {
         let mut bitter = BitGet::new(&[119, 0, 120]);
         assert_eq!(bitter.read_u32_bits_unchecked(8), 119);
-        assert_eq!(
-            bitter.read_bytes(1).map(|x| x.into_owned()).unwrap(),
-            vec![0]
-        );
+        let mut buf = [0u8; 1];
+        assert!(bitter.read_bytes(&mut buf));
+        assert_eq!(&buf, &[0]);
         assert_eq!(bitter.read_u32_bits_unchecked(8), 120);
     }
 
