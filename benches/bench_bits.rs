@@ -197,6 +197,31 @@ fn bit_width(c: &mut Criterion) {
     c.bench("remaining", bench);
 }
 
-criterion_group!(benches, bitting, eight_bits, sixtyfour_bits, remaining, read_bits_max, bit_width);
+fn read_bytes(c: &mut Criterion) {
+    let bench = Benchmark::new("aligned", |b| {
+        b.iter(|| {
+            let mut buf = [0u8; 7];
+            let mut bitter = BitGet::new(&DATA[..]);
+            for _ in 0..ITER {
+                black_box(bitter.read_bytes(&mut buf));
+            }
+        })
+    })
+    .with_function("unaligned", |b| {
+        b.iter(|| {
+            let mut buf = [0u8; 7];
+            let mut bitter = BitGet::new(&DATA[..]);
+            bitter.read_bit();
+            for _ in 0..ITER {
+                black_box(bitter.read_bytes(&mut buf));
+            }
+        })
+    });
+
+    c.bench("read_bytes", bench);
+
+}
+
+criterion_group!(benches, bitting, eight_bits, sixtyfour_bits, remaining, read_bits_max, bit_width, read_bytes);
 
 criterion_main!(benches);

@@ -5,20 +5,13 @@ extern crate bitter;
 extern crate bitterv1;
 
 #[quickcheck]
-fn read_bytes_length(k1: u8, data: Vec<u8>) -> bool {
+fn read_bytes_eq(k1: u8, data: Vec<u8>) -> bool {
     let mut bits = bitter::BitGet::new(data.as_slice());
-    match bits.read_bytes(k1 as i32) {
-        None => true,
-        Some(bytes) => bytes.len() == k1 as usize,
-    }
-}
-
-#[quickcheck]
-fn read_bytes_eq(data: Vec<u8>) -> bool {
-    let mut bits = bitter::BitGet::new(data.as_slice());
-    match bits.read_bytes(data.len() as i32) {
-        None => true,
-        Some(bytes) => bytes == data.as_slice(),
+    let mut buf = vec![0u8; usize::from(k1)];
+    if !bits.read_bytes(&mut buf) {
+        k1 > data.len() as u8
+    } else {
+        buf.as_slice() == &data[..usize::from(k1)]
     }
 }
 
@@ -46,20 +39,22 @@ fn read_bytes_bits(data: Vec<u8>) -> bool {
 
     let mut bits = bitter::BitGet::new(data.as_slice());
     bits.read_u32_bits_unchecked(3);
-    let bytes = bits.read_bytes((data.len() - 1) as i32).unwrap();
-    bytes.len() == data.len() - 1
+
+    let mut buf = vec![0u8; data.len() - 1];
+    bits.read_bytes(&mut buf)
 }
 
 #[quickcheck]
 fn v1_eq(data: Vec<u8>) -> bool {
     let mut bits = bitter::BitGet::new(data.as_slice());
     let mut bitsv1 = bitterv1::BitGet::new(data.as_slice());
+    let mut buf = vec![0u8; 3];
 
     bits.read_u32_bits(3) == bitsv1.read_u32_bits(3)
         && bits.read_u8() == bitsv1.read_u8()
         && bits.read_bits_max(20) == bitsv1.read_bits_max(5, 20)
         && bits.read_bit() == bitsv1.read_bit()
-        && bits.read_bytes(3).map(|x| x.into_owned()) == bitsv1.read_bytes(3)
+        && (bits.read_bytes(&mut buf) == bitsv1.read_bytes(3).is_some())
         && bits.read_u32_bits(13) == bitsv1.read_u32_bits(13)
         && bits.read_u8() == bitsv1.read_u8()
 }
