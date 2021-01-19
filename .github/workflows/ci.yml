@@ -86,6 +86,10 @@ jobs:
     - name: Build docs
       run: ${{ env.CARGO }} doc --verbose $TARGET
 
+    - name: No Std Tests
+      if: matrix.build != 'pinned'
+      run: ${{ env.CARGO }} test --no-default-features --verbose $TARGET
+
     - name: Tests
       if: matrix.build != 'pinned'
       run: ${{ env.CARGO }} test --verbose $TARGET

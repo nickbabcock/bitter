@@ -51,6 +51,7 @@
 //! #   panic!("Expected bytes")
 //! # }
 //! ```
+#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
 
 /// Calculates the width of the input in bits
 ///
@@ -60,7 +61,7 @@
 /// assert_eq!(bitter::bit_width(u32::max_value()), 32);
 /// ```
 pub const fn bit_width(input: u32) -> u32 {
-    (std::mem::size_of::<u32>() as u32) * 8 - input.leading_zeros()
+    (core::mem::size_of::<u32>() as u32) * 8 - input.leading_zeros()
 }
 
 /// Reads little-endian bits platform agonistically from a slice of byte data.
@@ -81,7 +82,7 @@ macro_rules! gen_read {
     ($name:ident, $t:ty) => {
         #[inline]
         pub fn $name(&mut self) -> Option<$t> {
-            let bits = (::std::mem::size_of::<$t>() * 8) as i32;
+            let bits = (core::mem::size_of::<$t>() * 8) as i32;
             self.read_u32_bits(bits).map(|x| x as $t)
         }
     };
@@ -91,13 +92,13 @@ macro_rules! gen_read_unchecked {
     ($name:ident, $t:ty) => {
         #[inline]
         pub fn $name(&mut self) -> $t {
-            let bits = (::std::mem::size_of::<$t>() * 8) as i32;
+            let bits = (core::mem::size_of::<$t>() * 8) as i32;
             self.read_u32_bits_unchecked(bits) as $t
         }
     };
 }
 
-const BYTE_WIDTH: usize = ::std::mem::size_of::<u64>();
+const BYTE_WIDTH: usize = core::mem::size_of::<u64>();
 const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 
 impl<'a> BitGet<'a> {
@@ -130,7 +131,7 @@ impl<'a> BitGet<'a> {
     /// Generates the bitmask for 32-bit integers (yes, even though the return type is u64)
     #[inline]
     fn bit_mask(bits: usize) -> u64 {
-        debug_assert!(bits < ::std::mem::size_of::<u64>() * 8);
+        debug_assert!(bits < core::mem::size_of::<u64>() * 8);
         (1 << bits) - 1
     }
 
@@ -151,11 +152,11 @@ impl<'a> BitGet<'a> {
     fn read(&mut self) -> u64 {
         unsafe {
             if self.data.len() >= BYTE_WIDTH {
-                ::std::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64).to_le()
+                core::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64).to_le()
             } else {
                 let mut data: u64 = 0;
                 let len = self.data.len();
-                ::std::ptr::copy_nonoverlapping(
+                core::ptr::copy_nonoverlapping(
                     self.data.as_ptr(),
                     &mut data as *mut u64 as *mut u8,
                     len,
@@ -176,7 +177,7 @@ impl<'a> BitGet<'a> {
             self.current_val = self.read();
             result
         } else {
-            let bts = ::std::mem::size_of::<u64>() * 8;
+            let bts = core::mem::size_of::<u64>() * 8;
             let little = self.current_val >> self.pos;
             self.data = &self.data[BYTE_WIDTH..];
             self.current_val = self.read();
@@ -195,7 +196,7 @@ impl<'a> BitGet<'a> {
             self.current_val = self.read();
             Some(ret)
         } else if !self.last_read {
-            let bts = ::std::mem::size_of::<u64>() * 8;
+            let bts = core::mem::size_of::<u64>() * 8;
             let new_data = &self.data[BYTE_WIDTH..];
             if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
                 None
@@ -509,7 +510,7 @@ impl<'a> BitGet<'a> {
     #[inline]
     pub fn read_bits_max(&mut self, max: u32) -> Option<u32> {
         let bits = bit_width(max) as i32 - 1;
-        self.read_bits_max_computed(std::cmp::max(bits, 0), max)
+        self.read_bits_max_computed(core::cmp::max(bits, 0), max)
     }
 
     /// Same as `read_bits_max` except that this function accepts the already computed number of
@@ -525,7 +526,7 @@ impl<'a> BitGet<'a> {
     /// ```
     #[inline]
     pub fn read_bits_max_computed(&mut self, bits: i32, max: u32) -> Option<u32> {
-        debug_assert!(std::cmp::max(bit_width(max) as i32, 1) == bits + 1);
+        debug_assert!(core::cmp::max(bit_width(max) as i32, 1) == bits + 1);
         self.read_u32_bits(bits).and_then(|data| {
             let up = data + (1 << bits);
             if up >= max {
@@ -553,7 +554,7 @@ impl<'a> BitGet<'a> {
     #[inline]
     pub fn read_bits_max_unchecked(&mut self, max: u32) -> u32 {
         let bits = bit_width(max) as i32 - 1;
-        self.read_bits_max_computed_unchecked(std::cmp::max(bits, 0), max)
+        self.read_bits_max_computed_unchecked(core::cmp::max(bits, 0), max)
     }
 
     /// Same as `read_bits_max_unchecked` except that this function accepts the already computed
@@ -570,7 +571,7 @@ impl<'a> BitGet<'a> {
     /// ```
     #[inline]
     pub fn read_bits_max_computed_unchecked(&mut self, bits: i32, max: u32) -> u32 {
-        debug_assert!(std::cmp::max(bit_width(max) as i32, 1) == bits + 1);
+        debug_assert!(core::cmp::max(bit_width(max) as i32, 1) == bits + 1);
         let data = self.read_u32_bits_unchecked(bits);
 
         // If the next bit is on, what would our value be
@@ -833,12 +834,12 @@ mod tests {
         unsafe {
             assert_eq!(
                 bitter.read_i64_unchecked(),
-                std::mem::transmute::<u64, i64>(0xb2b1_f0f5_f7fa_feff)
+                core::mem::transmute::<u64, i64>(0xb2b1_f0f5_f7fa_feff)
             );
             assert_eq!(bitter.read_u8_unchecked(), 0x01);
             assert_eq!(
                 bitter.read_i64_unchecked(),
-                std::mem::transmute::<u64, i64>(0xb3b1_f0f5_f7fa_feff)
+                core::mem::transmute::<u64, i64>(0xb3b1_f0f5_f7fa_feff)
             );
         }
     }
@@ -1173,7 +1174,7 @@ mod tests {
         let data = [0b0000_0000, 0b1000_0000];
         let mut bits = BitGet::new(&data[..]);
 
-        assert_eq!(bits.read_i16(), Some(std::i16::MIN));
+        assert_eq!(bits.read_i16(), Some(core::i16::MIN));
     }
 
     #[test]
@@ -1181,7 +1182,7 @@ mod tests {
         let data = [0b1111_1111, 0b0111_1111];
         let mut bits = BitGet::new(&data[..]);
 
-        assert_eq!(bits.read_i16(), Some(std::i16::MAX));
+        assert_eq!(bits.read_i16(), Some(core::i16::MAX));
     }
 
     #[test]
