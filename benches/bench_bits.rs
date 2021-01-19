@@ -133,7 +133,9 @@ fn sixtyfour_bits(c: &mut Criterion) {
         "bitter_byte_checked",
         ben!(BitGet::new(&DATA), |x: &mut BitGet| x.read_u64()),
     )
-    .throughput(Throughput::Bytes(::std::mem::size_of::<u64>() as u64 * ITER));
+    .throughput(Throughput::Bytes(
+        ::std::mem::size_of::<u64>() as u64 * ITER,
+    ));
 
     c.bench("sixtyfour_bits", bench);
 }
@@ -190,9 +192,7 @@ fn read_bits_max(c: &mut Criterion) {
 }
 
 fn bit_width(c: &mut Criterion) {
-    let bench = Benchmark::new("bit_width", |b| {
-        b.iter(|| bitter::bit_width(black_box(20)))
-    });
+    let bench = Benchmark::new("bit_width", |b| b.iter(|| bitter::bit_width(black_box(20))));
 
     c.bench("remaining", bench);
 }
@@ -219,9 +219,17 @@ fn read_bytes(c: &mut Criterion) {
     });
 
     c.bench("read_bytes", bench);
-
 }
 
-criterion_group!(benches, bitting, eight_bits, sixtyfour_bits, remaining, read_bits_max, bit_width, read_bytes);
+criterion_group!(
+    benches,
+    bitting,
+    eight_bits,
+    sixtyfour_bits,
+    remaining,
+    read_bits_max,
+    bit_width,
+    read_bytes
+);
 
 criterion_main!(benches);

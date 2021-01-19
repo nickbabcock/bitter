@@ -78,21 +78,23 @@ pub struct BitGet<'a> {
 }
 
 macro_rules! gen_read {
-    ($name:ident, $t:ty) => (
-    #[inline]
-    pub fn $name(&mut self) -> Option<$t> {
-        let bits = (::std::mem::size_of::<$t>() * 8) as i32;
-        self.read_u32_bits(bits).map(|x| x as $t)
-   });
+    ($name:ident, $t:ty) => {
+        #[inline]
+        pub fn $name(&mut self) -> Option<$t> {
+            let bits = (::std::mem::size_of::<$t>() * 8) as i32;
+            self.read_u32_bits(bits).map(|x| x as $t)
+        }
+    };
 }
 
 macro_rules! gen_read_unchecked {
-    ($name:ident, $t:ty) => (
-    #[inline]
-    pub fn $name(&mut self) -> $t {
-        let bits = (::std::mem::size_of::<$t>() * 8) as i32;
-        self.read_u32_bits_unchecked(bits) as $t
-   });
+    ($name:ident, $t:ty) => {
+        #[inline]
+        pub fn $name(&mut self) -> $t {
+            let bits = (::std::mem::size_of::<$t>() * 8) as i32;
+            self.read_u32_bits_unchecked(bits) as $t
+        }
+    };
 }
 
 const BYTE_WIDTH: usize = ::std::mem::size_of::<u64>();
@@ -242,7 +244,9 @@ impl<'a> BitGet<'a> {
     pub fn read_u32_bits(&mut self, bits: i32) -> Option<u32> {
         let bts = bits as usize;
         let new_pos = self.pos + bts;
-        if (!self.last_read && new_pos < BIT_WIDTH) || (self.last_read && new_pos <= self.data.len() * 8) {
+        if (!self.last_read && new_pos < BIT_WIDTH)
+            || (self.last_read && new_pos <= self.data.len() * 8)
+        {
             let res = (self.current_val >> self.pos) & BitGet::bit_mask(bts);
             self.pos = new_pos;
             Some(res as u32)
@@ -584,7 +588,7 @@ impl<'a> BitGet<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BitGet, bit_width};
+    use super::{bit_width, BitGet};
 
     #[test]
     fn test_bit_reads() {
@@ -1047,7 +1051,10 @@ mod tests {
         assert_eq!(bitter.read_bits_max_computed(0, 00), Some(0));
 
         let mut bitter = BitGet::new(&[0xff, 0xff, 0xff, 0xff]);
-        assert_eq!(bitter.read_bits_max_computed(31, u32::max_value()), Some(0x7fff_ffff));
+        assert_eq!(
+            bitter.read_bits_max_computed(31, u32::max_value()),
+            Some(0x7fff_ffff)
+        );
     }
 
     #[test]
@@ -1072,7 +1079,10 @@ mod tests {
         assert_eq!(bitter.read_bits_max_unchecked(0), 0);
 
         let mut bitter = BitGet::new(&[0xff, 0xff, 0xff, 0xff]);
-        assert_eq!(bitter.read_bits_max_unchecked(u32::max_value()), 0x7fff_ffff);
+        assert_eq!(
+            bitter.read_bits_max_unchecked(u32::max_value()),
+            0x7fff_ffff
+        );
     }
 
     #[test]
@@ -1097,7 +1107,10 @@ mod tests {
         assert_eq!(bitter.read_bits_max_computed_unchecked(0, 0), 0);
 
         let mut bitter = BitGet::new(&[0xff, 0xff, 0xff, 0xff]);
-        assert_eq!(bitter.read_bits_max_computed_unchecked(31, u32::max_value()), 0x7fff_ffff);
+        assert_eq!(
+            bitter.read_bits_max_computed_unchecked(31, u32::max_value()),
+            0x7fff_ffff
+        );
     }
 
     #[test]
