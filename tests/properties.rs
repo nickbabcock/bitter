@@ -4,9 +4,11 @@ extern crate quickcheck_macros;
 extern crate bitter;
 extern crate bitterv1;
 
+use bitter::BitOrder;
+
 #[quickcheck]
 fn read_bytes_eq(k1: u8, data: Vec<u8>) -> bool {
-    let mut bits = bitter::BitGet::new(data.as_slice());
+    let mut bits = bitter::LittleEndianBits::new(data.as_slice());
     let mut buf = vec![0u8; usize::from(k1)];
     if !bits.read_bytes(&mut buf) {
         k1 > data.len() as u8
@@ -17,13 +19,13 @@ fn read_bytes_eq(k1: u8, data: Vec<u8>) -> bool {
 
 #[quickcheck]
 fn has_bits_remaining_bit_reads(data: Vec<u8>) -> bool {
-    let mut bits = bitter::BitGet::new(data.as_slice());
+    let mut bits = bitter::LittleEndianBits::new(data.as_slice());
     (1..128).all(|_x| bits.has_bits_remaining(1) == bits.read_bit().is_some())
 }
 
 #[quickcheck]
 fn has_bits_remaining(data: Vec<u8>) -> bool {
-    let mut bits = bitter::BitGet::new(data.as_slice());
+    let mut bits = bitter::LittleEndianBits::new(data.as_slice());
     (1..32).all(|x| bits.has_bits_remaining(x) == bits.read_u32_bits(x as i32).is_some())
         && bits.has_bits_remaining(8) == bits.read_u8().is_some()
         && bits.has_bits_remaining(16) == bits.read_u16().is_some()
@@ -37,7 +39,7 @@ fn read_bytes_bits(data: Vec<u8>) -> bool {
         return true;
     }
 
-    let mut bits = bitter::BitGet::new(data.as_slice());
+    let mut bits = bitter::LittleEndianBits::new(data.as_slice());
     bits.read_u32_bits_unchecked(3);
 
     let mut buf = vec![0u8; data.len() - 1];
@@ -46,7 +48,7 @@ fn read_bytes_bits(data: Vec<u8>) -> bool {
 
 #[quickcheck]
 fn v1_eq(data: Vec<u8>) -> bool {
-    let mut bits = bitter::BitGet::new(data.as_slice());
+    let mut bits = bitter::LittleEndianBits::new(data.as_slice());
     let mut bitsv1 = bitterv1::BitGet::new(data.as_slice());
     let mut buf = vec![0u8; 3];
 
