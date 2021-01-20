@@ -111,7 +111,8 @@ fn eight_bits(c: &mut Criterion) {
     )
     .with_function(
         "bitter_byte_unchecked",
-        ben!(LittleEndianBits::new(&DATA), |x: &mut LittleEndianBits| x.read_u8_unchecked()),
+        ben!(LittleEndianBits::new(&DATA), |x: &mut LittleEndianBits| x
+            .read_u8_unchecked()),
     )
     .with_function(
         "bitter_byte_checked",
@@ -127,11 +128,13 @@ fn eight_bits(c: &mut Criterion) {
 fn sixtyfour_bits(c: &mut Criterion) {
     let bench = Benchmark::new(
         "bitter_byte_unchecked",
-        ben!(LittleEndianBits::new(&DATA), |x: &mut LittleEndianBits| x.read_u64_unchecked()),
+        ben!(LittleEndianBits::new(&DATA), |x: &mut LittleEndianBits| x
+            .read_u64_unchecked()),
     )
     .with_function(
         "bitter_byte_checked",
-        ben!(LittleEndianBits::new(&DATA), |x: &mut LittleEndianBits| x.read_u64()),
+        ben!(LittleEndianBits::new(&DATA), |x: &mut LittleEndianBits| x
+            .read_u64()),
     )
     .throughput(Throughput::Bytes(
         ::std::mem::size_of::<u64>() as u64 * ITER,

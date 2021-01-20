@@ -14,7 +14,7 @@
 //! ## Example
 //!
 //! ```rust
-//! use bitter::LittleEndianBits;
+//! use bitter::{LittleEndianBits, BitOrder};
 //! let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
 //! assert_eq!(bitter.read_bit(), Some(true));
 //! assert_eq!(bitter.read_u8(), Some(0x7f));
@@ -24,7 +24,7 @@
 //! Below, is a demonstration of guarding against potential panics:
 //!
 //! ```rust
-//! # use bitter::LittleEndianBits;
+//! # use bitter::{LittleEndianBits, BitOrder};
 //! let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
 //! if bitter.has_bits_remaining(16) {
 //!     assert_eq!(bitter.read_bit_unchecked(), true);
@@ -39,7 +39,7 @@
 //! Another guard usage:
 //!
 //! ```rust
-//! # use bitter::LittleEndianBits;
+//! # use bitter::{LittleEndianBits, BitOrder};
 //! let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
 //! if bitter.has_bits_remaining(16) {
 //!     for _ in 0..8 {
@@ -66,7 +66,9 @@ pub trait BitOrder {
     fn read_f32(&mut self) -> Option<f32>;
     fn read_u32_bits(&mut self, bits: i32) -> Option<u32>;
     fn read_i32_bits(&mut self, bits: i32) -> Option<i32>;
-    fn if_get<T, F>(&mut self, f: F) -> Option<Option<T>> where F: FnMut(&mut Self) -> Option<T>;
+    fn if_get<T, F>(&mut self, f: F) -> Option<Option<T>>
+    where
+        F: FnMut(&mut Self) -> Option<T>;
     fn read_bytes(&mut self, buf: &mut [u8]) -> bool;
     fn read_bits_max(&mut self, max: u32) -> Option<u32>;
     fn read_bits_max_computed(&mut self, bits: i32, max: u32) -> Option<u32>;
@@ -83,7 +85,9 @@ pub trait BitOrder {
     fn read_f32_unchecked(&mut self) -> f32;
     fn read_u32_bits_unchecked(&mut self, bits: i32) -> u32;
     fn read_i32_bits_unchecked(&mut self, bits: i32) -> i32;
-    fn if_get_unchecked<T, F>(&mut self, f: F) -> Option<T> where F: FnMut(&mut Self) -> T;
+    fn if_get_unchecked<T, F>(&mut self, f: F) -> Option<T>
+    where
+        F: FnMut(&mut Self) -> T;
     fn read_bits_max_unchecked(&mut self, max: u32) -> u32;
     fn read_bits_max_computed_unchecked(&mut self, bits: i32, max: u32) -> u32;
 
@@ -91,7 +95,6 @@ pub trait BitOrder {
     fn bits_remaining(&self) -> Option<usize>;
     fn has_bits_remaining(&self, bits: usize) -> bool;
     fn is_empty(&self) -> bool;
-
 }
 
 /// Calculates the width of the input in bits
@@ -157,18 +160,18 @@ macro_rules! generate_bitter_end {
                     data,
                     last_read: false,
                 };
-        
+
                 res.current_val = res.read();
                 res
             }
-        
+
             /// Determines if our bit position is not byte aligned
             #[inline]
             fn is_mid_byte(&self) -> bool {
                 // 0x38 = 32 | 24 | 16 | 8
                 self.pos & !0x38 != 0
             }
-        
+
             /// Assuming that `self.data` is pointing to data not yet seen. slurp up 8 bytes or the
             /// rest of the data (whatever is smaller)
             ///
@@ -179,7 +182,8 @@ macro_rules! generate_bitter_end {
             fn read(&mut self) -> u64 {
                 unsafe {
                     if self.data.len() >= BYTE_WIDTH {
-                        core::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64).$which()
+                        core::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64)
+                            .$which()
                     } else {
                         let mut data: u64 = 0;
                         let len = self.data.len();
@@ -194,442 +198,440 @@ macro_rules! generate_bitter_end {
                 }
             }
         }
-            impl<'a> BitOrder for $name<'a> {
-                gen_read!(read_u8, u8);
-                gen_read!(read_i8, i8);
-                gen_read!(read_u16, u16);
-                gen_read!(read_i16, i16);
-                gen_read!(read_u32, u32);
-                gen_read!(read_i32, i32);
-            
-                gen_read_unchecked!(read_u8_unchecked, u8);
-                gen_read_unchecked!(read_i8_unchecked, i8);
-                gen_read_unchecked!(read_u16_unchecked, u16);
-                gen_read_unchecked!(read_i16_unchecked, i16);
-                gen_read_unchecked!(read_u32_unchecked, u32);
-                gen_read_unchecked!(read_i32_unchecked, i32);
-            
-            
-            
-                #[inline]
-                fn read_u64_unchecked(&mut self) -> u64 {
-                    // While reading 64bit we can take advantage of an optimization trick not available to
-                    // other reads as 64bits is the same as our cache size
-                    if self.pos == 0 {
-                        let result = self.current_val;
-                        self.data = &self.data[BYTE_WIDTH..];
-                        self.current_val = self.read();
-                        result
+        impl<'a> BitOrder for $name<'a> {
+            gen_read!(read_u8, u8);
+            gen_read!(read_i8, i8);
+            gen_read!(read_u16, u16);
+            gen_read!(read_i16, i16);
+            gen_read!(read_u32, u32);
+            gen_read!(read_i32, i32);
+
+            gen_read_unchecked!(read_u8_unchecked, u8);
+            gen_read_unchecked!(read_i8_unchecked, i8);
+            gen_read_unchecked!(read_u16_unchecked, u16);
+            gen_read_unchecked!(read_i16_unchecked, i16);
+            gen_read_unchecked!(read_u32_unchecked, u32);
+            gen_read_unchecked!(read_i32_unchecked, i32);
+
+            #[inline]
+            fn read_u64_unchecked(&mut self) -> u64 {
+                // While reading 64bit we can take advantage of an optimization trick not available to
+                // other reads as 64bits is the same as our cache size
+                if self.pos == 0 {
+                    let result = self.current_val;
+                    self.data = &self.data[BYTE_WIDTH..];
+                    self.current_val = self.read();
+                    result
+                } else {
+                    let bts = core::mem::size_of::<u64>() * 8;
+                    let little = self.current_val >> self.pos;
+                    self.data = &self.data[BYTE_WIDTH..];
+                    self.current_val = self.read();
+                    let big = self.current_val << (bts - self.pos);
+                    little + big
+                }
+            }
+
+            #[inline]
+            fn read_u64(&mut self) -> Option<u64> {
+                // While reading 64bit we can take advantage of an optimization trick not available to
+                // other reads as 64bits is the same as our cache size
+                if self.pos == 0 && !self.last_read {
+                    let ret = self.current_val;
+                    self.data = &self.data[BYTE_WIDTH..];
+                    self.current_val = self.read();
+                    Some(ret)
+                } else if !self.last_read {
+                    let bts = core::mem::size_of::<u64>() * 8;
+                    let new_data = &self.data[BYTE_WIDTH..];
+                    if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
+                        None
                     } else {
-                        let bts = core::mem::size_of::<u64>() * 8;
                         let little = self.current_val >> self.pos;
-                        self.data = &self.data[BYTE_WIDTH..];
+                        self.data = new_data;
                         self.current_val = self.read();
                         let big = self.current_val << (bts - self.pos);
-                        little + big
+                        Some(little + big)
                     }
+                } else {
+                    None
                 }
-            
-                #[inline]
-                fn read_u64(&mut self) -> Option<u64> {
-                    // While reading 64bit we can take advantage of an optimization trick not available to
-                    // other reads as 64bits is the same as our cache size
-                    if self.pos == 0 && !self.last_read {
-                        let ret = self.current_val;
-                        self.data = &self.data[BYTE_WIDTH..];
-                        self.current_val = self.read();
-                        Some(ret)
-                    } else if !self.last_read {
-                        let bts = core::mem::size_of::<u64>() * 8;
-                        let new_data = &self.data[BYTE_WIDTH..];
-                        if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
-                            None
-                        } else {
-                            let little = self.current_val >> self.pos;
-                            self.data = new_data;
-                            self.current_val = self.read();
-                            let big = self.current_val << (bts - self.pos);
-                            Some(little + big)
-                        }
-                    } else {
+            }
+
+            #[inline]
+            fn read_i64(&mut self) -> Option<i64> {
+                self.read_u64().map(|x| x as i64)
+            }
+
+            #[inline]
+            fn read_i64_unchecked(&mut self) -> i64 {
+                self.read_u64_unchecked() as i64
+            }
+
+            #[inline]
+            fn read_u32_bits_unchecked(&mut self, bits: i32) -> u32 {
+                let bts = bits as usize;
+                let new_pos = self.pos + bts;
+                if new_pos < BIT_WIDTH {
+                    let res = (self.current_val >> self.pos) & bit_mask(bts);
+                    self.pos = new_pos;
+                    res as u32
+                } else {
+                    let little = self.current_val >> self.pos;
+                    self.data = &self.data[BYTE_WIDTH..];
+                    self.current_val = self.read();
+                    let left = new_pos - BIT_WIDTH;
+                    let big = (self.current_val & bit_mask(left)) << (bts - left);
+                    self.pos = left;
+                    (little + big) as u32
+                }
+            }
+
+            #[inline]
+            fn read_u32_bits(&mut self, bits: i32) -> Option<u32> {
+                let bts = bits as usize;
+                let new_pos = self.pos + bts;
+                if (!self.last_read && new_pos < BIT_WIDTH)
+                    || (self.last_read && new_pos <= self.data.len() * 8)
+                {
+                    let res = (self.current_val >> self.pos) & bit_mask(bts);
+                    self.pos = new_pos;
+                    Some(res as u32)
+                } else if !self.last_read {
+                    let new_data = &self.data[BYTE_WIDTH..];
+                    let left = new_pos - BIT_WIDTH;
+                    if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {
                         None
-                    }
-                }
-            
-                #[inline]
-                fn read_i64(&mut self) -> Option<i64> {
-                    self.read_u64().map(|x| x as i64)
-                }
-            
-                #[inline]
-                fn read_i64_unchecked(&mut self) -> i64 {
-                    self.read_u64_unchecked() as i64
-                }
-            
-                #[inline]
-                fn read_u32_bits_unchecked(&mut self, bits: i32) -> u32 {
-                    let bts = bits as usize;
-                    let new_pos = self.pos + bts;
-                    if new_pos < BIT_WIDTH {
-                        let res = (self.current_val >> self.pos) & bit_mask(bts);
-                        self.pos = new_pos;
-                        res as u32
                     } else {
                         let little = self.current_val >> self.pos;
-                        self.data = &self.data[BYTE_WIDTH..];
+                        self.data = new_data;
                         self.current_val = self.read();
-                        let left = new_pos - BIT_WIDTH;
                         let big = (self.current_val & bit_mask(left)) << (bts - left);
                         self.pos = left;
-                        (little + big) as u32
+                        Some((little + big) as u32)
                     }
+                } else {
+                    None
                 }
-            
-                #[inline]
-                fn read_u32_bits(&mut self, bits: i32) -> Option<u32> {
-                    let bts = bits as usize;
-                    let new_pos = self.pos + bts;
-                    if (!self.last_read && new_pos < BIT_WIDTH)
-                        || (self.last_read && new_pos <= self.data.len() * 8)
-                    {
-                        let res = (self.current_val >> self.pos) & bit_mask(bts);
-                        self.pos = new_pos;
-                        Some(res as u32)
-                    } else if !self.last_read {
-                        let new_data = &self.data[BYTE_WIDTH..];
-                        let left = new_pos - BIT_WIDTH;
-                        if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {
-                            None
-                        } else {
-                            let little = self.current_val >> self.pos;
-                            self.data = new_data;
-                            self.current_val = self.read();
-                            let big = (self.current_val & bit_mask(left)) << (bts - left);
-                            self.pos = left;
-                            Some((little + big) as u32)
-                        }
-                    } else {
-                        None
-                    }
-                }
-            
-                #[inline]
-                fn read_i32_bits_unchecked(&mut self, bits: i32) -> i32 {
-                    self.read_u32_bits_unchecked(bits) as i32
-                }
-            
-                #[inline]
-                fn read_i32_bits(&mut self, bits: i32) -> Option<i32> {
-                    self.read_u32_bits(bits).map(|x| x as i32)
-                }
-            
-                /// Return approximately how many bytes are left in the bitstream. This can overestimate by one
-                /// when the bit position is non-zero. Thus it is recommended to always compare with a greater
-                /// than sign to avoid undefined behavior with unchecked reads
-                ///
-                /// ```rust
-                /// # use bitter::LittleEndianBits;
-                /// let mut bitter = LittleEndianBits::new(&[0xff]);
-                /// assert_eq!(bitter.approx_bytes_remaining(), 1);
-                /// assert!(bitter.read_bit().is_some());
-                /// assert_eq!(bitter.approx_bytes_remaining(), 1);
-                /// assert!(bitter.read_u32_bits(7).is_some());
-                /// assert_eq!(bitter.approx_bytes_remaining(), 0);
-                /// ```
-                #[inline]
-                fn approx_bytes_remaining(&self) -> usize {
-                    self.data.len() - (self.pos >> 3)
-                }
-            
-                /// Returns the exact number of bits remaining in the bitstream if the number of bits can fit
-                /// within a `usize`. For large byte slices, the calculating the number of bits can cause an
-                /// overflow, hence an `Option` is returned. See `has_bits_remaining` for a more performant and
-                /// ergonomic alternative.
-                ///
-                /// ```rust
-                /// # use bitter::LittleEndianBits;
-                /// let mut bitter = LittleEndianBits::new(&[0xff]);
-                /// assert_eq!(bitter.bits_remaining(), Some(8));
-                /// assert!(bitter.read_bit().is_some());
-                /// assert_eq!(bitter.bits_remaining(), Some(7));
-                /// assert!(bitter.read_u32_bits(7).is_some());
-                /// assert_eq!(bitter.bits_remaining(), Some(0));
-                /// ```
-                #[inline]
-                fn bits_remaining(&self) -> Option<usize> {
-                    self.approx_bytes_remaining()
-                        .checked_mul(8)
-                        .map(|x| x - (self.pos & 0x7) as usize)
-                }
-            
-                /// Returns true if at least `bits` number of bits are left in the stream. A more performant
-                /// and ergonomic way than `bits_remaining`.
-                ///
-                /// ```rust
-                /// # use bitter::LittleEndianBits;
-                /// let mut bitter = LittleEndianBits::new(&[0xff]);
-                /// assert!(bitter.has_bits_remaining(7));
-                /// assert!(bitter.has_bits_remaining(8));
-                /// assert!(!bitter.has_bits_remaining(9));
-                ///
-                /// assert!(bitter.read_bit().is_some());
-                /// assert!(bitter.has_bits_remaining(7));
-                /// assert!(!bitter.has_bits_remaining(8));
-                ///
-                /// assert!(bitter.read_u32_bits(7).is_some());
-                /// assert!(!bitter.has_bits_remaining(7));
-                /// assert!(bitter.has_bits_remaining(0));
-                /// ```
-                #[inline]
-                fn has_bits_remaining(&self, bits: usize) -> bool {
-                    let bytes_requested = bits >> 3;
-                    if self.data.len() > bytes_requested + BYTE_WIDTH {
-                        true
-                    } else {
-                        let pos_bytes = self.pos >> 3;
-                        let diff = self.data.len();
-                        if !self.is_mid_byte() {
-                            let bytes_left = diff - pos_bytes;
-                            if bytes_left == bytes_requested {
-                                bits & 0x7 == 0
-                            } else {
-                                bytes_left > bytes_requested
-                            }
-                        } else {
-                            let whole_bytes_left = diff - pos_bytes - 1;
-                            if whole_bytes_left == bytes_requested {
-                                (self.pos & 0x7) <= (8 - (bits & 0x7))
-                            } else {
-                                whole_bytes_left > bytes_requested
-                            }
-                        }
-                    }
-                }
-            
-                /// Returns if the bitstream has no bits left
-                ///
-                /// ```rust
-                /// # use bitter::LittleEndianBits;
-                /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
-                /// assert_eq!(bitter.is_empty(), false);
-                /// assert_eq!(bitter.read_u16_unchecked(), 0b0101_0101_1010_1010);
-                /// assert_eq!(bitter.is_empty(), true);
-                /// ```
-                fn is_empty(&self) -> bool {
-                    self.approx_bytes_remaining() == 0
-                }
-            
-                /// Reads a bit from the bitstream if available
-                ///
-                /// ```rust
-                /// # use bitter::LittleEndianBits;
-                /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
-                /// assert_eq!(bitter.read_bit(), Some(false));
-                /// ```
-                #[inline]
-                fn read_bit(&mut self) -> Option<bool> {
-                    self.read_u32_bits(1).map(|x| x != 0)
-                }
-            
-                /// *Assumes* there is at least one bit left in the stream.
-                ///
-                /// ```rust
-                /// # use bitter::LittleEndianBits;
-                /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
-                /// assert_eq!(bitter.read_bit_unchecked(), false);
-                /// ```
-                #[inline]
-                fn read_bit_unchecked(&mut self) -> bool {
-                    self.read_u32_bits_unchecked(1) & 1 != 0
-                }
-            
-                /// Reads a `f32` from the bitstream if available. The standard IEEE-754 binary layout float is
-                /// used.
-                #[inline]
-                fn read_f32(&mut self) -> Option<f32> {
-                    self.read_u32().map(f32::from_bits)
-                }
-            
-                /// Reads a `f32` from the bitstream. The standard IEEE-754 binary layout float is used.
-                #[inline]
-                fn read_f32_unchecked(&mut self) -> f32 {
-                    f32::from_bits(self.read_u32_unchecked())
-                }
-            
-                /// If the next bit is available and on, decode the next chunk of data (which can return None).
-                /// The return value can be one of the following:
-                ///
-                /// - None: Not enough data was available
-                /// - Some(None): Bit was off so data not decoded
-                /// - Some(x): Bit was on and data was decoded
-                ///
-                /// ```rust
-                /// # use bitter::LittleEndianBits;
-                /// let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
-                /// assert_eq!(bitter.if_get(LittleEndianBits::read_u8), Some(Some(0x7f)));
-                /// assert_eq!(bitter.if_get(LittleEndianBits::read_u8), Some(None));
-                /// assert_eq!(bitter.if_get(LittleEndianBits::read_u8), None);
-                /// ```
-                #[cfg_attr(feature = "cargo-clippy", allow(clippy::option_option))]
-                fn if_get<T, F>(&mut self, mut f: F) -> Option<Option<T>>
-                where
-                    F: FnMut(&mut Self) -> Option<T>,
-                {
-                    self.read_bit()
-                        .and_then(|bit| if bit { f(self).map(Some) } else { Some(None) })
-                }
-            
-                /// If the next bit is available and on, decode the next chunk of data.  The return value can
-                /// be one of the following:
-                ///
-                /// - Some(None): Bit was off so data not decoded
-                /// - Some(x): Bit was on and data was decoded
-                ///
-                /// ```rust
-                /// # use bitter::LittleEndianBits;
-                /// let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
-                /// assert_eq!(bitter.if_get_unchecked(LittleEndianBits::read_u8_unchecked), Some(0x7f));
-                /// assert_eq!(bitter.if_get_unchecked(LittleEndianBits::read_u8_unchecked), None);
-                /// ```
-                /// # Panics
-                ///
-                /// Will panic if no data is left for the bit or for the data to be decoded.
-                fn if_get_unchecked<T, F>(&mut self, mut f: F) -> Option<T>
-                where
-                    F: FnMut(&mut Self) -> T,
-                {
-                    if self.read_bit_unchecked() {
-                        Some(f(self))
-                    } else {
-                        None
-                    }
-                }
-            
-                /// Read the number of bytes needed to fill the provided buffer. Returns whether
-                /// the read was successful and the buffer has been filled.
-                ///
-                /// ```rust
-                /// # use bitter::LittleEndianBits;
-                /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
-                /// let mut buf = [0; 1];
-                /// assert_eq!(bitter.read_bit_unchecked(), false);
-                /// assert!(bitter.read_bytes(&mut buf));
-                /// assert_eq!(&buf, &[0b1101_0101]);
-                /// ```
-                fn read_bytes(&mut self, buf: &mut [u8]) -> bool {
+            }
+
+            #[inline]
+            fn read_i32_bits_unchecked(&mut self, bits: i32) -> i32 {
+                self.read_u32_bits_unchecked(bits) as i32
+            }
+
+            #[inline]
+            fn read_i32_bits(&mut self, bits: i32) -> Option<i32> {
+                self.read_u32_bits(bits).map(|x| x as i32)
+            }
+
+            /// Return approximately how many bytes are left in the bitstream. This can overestimate by one
+            /// when the bit position is non-zero. Thus it is recommended to always compare with a greater
+            /// than sign to avoid undefined behavior with unchecked reads
+            ///
+            /// ```rust
+            /// # use bitter::{LittleEndianBits, BitOrder};
+            /// let mut bitter = LittleEndianBits::new(&[0xff]);
+            /// assert_eq!(bitter.approx_bytes_remaining(), 1);
+            /// assert!(bitter.read_bit().is_some());
+            /// assert_eq!(bitter.approx_bytes_remaining(), 1);
+            /// assert!(bitter.read_u32_bits(7).is_some());
+            /// assert_eq!(bitter.approx_bytes_remaining(), 0);
+            /// ```
+            #[inline]
+            fn approx_bytes_remaining(&self) -> usize {
+                self.data.len() - (self.pos >> 3)
+            }
+
+            /// Returns the exact number of bits remaining in the bitstream if the number of bits can fit
+            /// within a `usize`. For large byte slices, the calculating the number of bits can cause an
+            /// overflow, hence an `Option` is returned. See `has_bits_remaining` for a more performant and
+            /// ergonomic alternative.
+            ///
+            /// ```rust
+            /// # use bitter::{LittleEndianBits, BitOrder};
+            /// let mut bitter = LittleEndianBits::new(&[0xff]);
+            /// assert_eq!(bitter.bits_remaining(), Some(8));
+            /// assert!(bitter.read_bit().is_some());
+            /// assert_eq!(bitter.bits_remaining(), Some(7));
+            /// assert!(bitter.read_u32_bits(7).is_some());
+            /// assert_eq!(bitter.bits_remaining(), Some(0));
+            /// ```
+            #[inline]
+            fn bits_remaining(&self) -> Option<usize> {
+                self.approx_bytes_remaining()
+                    .checked_mul(8)
+                    .map(|x| x - (self.pos & 0x7) as usize)
+            }
+
+            /// Returns true if at least `bits` number of bits are left in the stream. A more performant
+            /// and ergonomic way than `bits_remaining`.
+            ///
+            /// ```rust
+            /// # use bitter::{LittleEndianBits, BitOrder};
+            /// let mut bitter = LittleEndianBits::new(&[0xff]);
+            /// assert!(bitter.has_bits_remaining(7));
+            /// assert!(bitter.has_bits_remaining(8));
+            /// assert!(!bitter.has_bits_remaining(9));
+            ///
+            /// assert!(bitter.read_bit().is_some());
+            /// assert!(bitter.has_bits_remaining(7));
+            /// assert!(!bitter.has_bits_remaining(8));
+            ///
+            /// assert!(bitter.read_u32_bits(7).is_some());
+            /// assert!(!bitter.has_bits_remaining(7));
+            /// assert!(bitter.has_bits_remaining(0));
+            /// ```
+            #[inline]
+            fn has_bits_remaining(&self, bits: usize) -> bool {
+                let bytes_requested = bits >> 3;
+                if self.data.len() > bytes_requested + BYTE_WIDTH {
+                    true
+                } else {
                     let pos_bytes = self.pos >> 3;
-                    let bytes_left = self.data.len() - pos_bytes;
-                    if !self.is_mid_byte() && bytes_left >= buf.len() {
-                        let end = pos_bytes + buf.len();
-                        buf.copy_from_slice(&self.data[pos_bytes..end]);
-                        self.data = &self.data[end..];
-                        self.current_val = self.read();
-                        self.pos = 0;
-                        true
-                    } else if bytes_left > buf.len() {
-                        for b in buf.iter_mut() {
-                            *b = self.read_u8_unchecked();
-                        }
-            
-                        true
-                    } else {
-                        false
-                    }
-                }
-            
-                /// Reads a value from the stream that consumes the same or fewer number of bits of a given
-                /// max. The value read will always be less than the given max.
-                ///
-                /// For example if one wants to read a value that is less than 20, bitter will read at least
-                /// 4 bits from the stream. If the 5th bit would cause the accumulator to exceed the max, the
-                /// 5th bit is not consumed. Else the 5th bit is consumed and added to accumulator. If the
-                /// necessary number of bits are not available, `None` is returned.
-                ///
-                /// ```rust
-                /// # use bitter::LittleEndianBits;
-                /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
-                /// assert_eq!(bitter.read_bits_max(20), Some(8));
-                /// assert_eq!(bitter.read_bits_max(20), Some(15));
-                /// ```
-                #[inline]
-                fn read_bits_max(&mut self, max: u32) -> Option<u32> {
-                    let bits = bit_width(max) as i32 - 1;
-                    self.read_bits_max_computed(core::cmp::max(bits, 0), max)
-                }
-            
-                /// Same as `read_bits_max` except that this function accepts the already computed number of
-                /// bits to at least read. For instance, if 20 is the max, then 4 bits are at least needed.
-                ///
-                /// In general, prefer `read_bits_max` for ease of use
-                ///
-                /// ```rust
-                /// # use bitter::LittleEndianBits;
-                /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
-                /// assert_eq!(bitter.read_bits_max_computed(4, 20), Some(8));
-                /// assert_eq!(bitter.read_bits_max_computed(4, 20), Some(15));
-                /// ```
-                #[inline]
-                fn read_bits_max_computed(&mut self, bits: i32, max: u32) -> Option<u32> {
-                    debug_assert!(core::cmp::max(bit_width(max) as i32, 1) == bits + 1);
-                    self.read_u32_bits(bits).and_then(|data| {
-                        let up = data + (1 << bits);
-                        if up >= max {
-                            Some(data)
+                    let diff = self.data.len();
+                    if !self.is_mid_byte() {
+                        let bytes_left = diff - pos_bytes;
+                        if bytes_left == bytes_requested {
+                            bits & 0x7 == 0
                         } else {
-                            // Check the next bit
-                            self.read_bit().map(|x| if x { up } else { data })
+                            bytes_left > bytes_requested
                         }
-                    })
-                }
-            
-                /// Reads a value from the stream that consumes the same or fewer number of bits of a given
-                /// max. The value read will always be less than the given max.
-                ///
-                /// For example if one wants to read a value that is less than 20, bitter will read at least
-                /// 4 bits from the stream. If the 5th bit would cause the accumulator to exceed the max, the
-                /// 5th bit is not consumed. Else the 5th bit is consumed and added to accumulator.
-                ///
-                /// ```rust
-                /// # use bitter::LittleEndianBits;
-                /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
-                /// assert_eq!(bitter.read_bits_max_unchecked(20), 8);
-                /// assert_eq!(bitter.read_bits_max_unchecked(20), 15);
-                /// ```
-                #[inline]
-                fn read_bits_max_unchecked(&mut self, max: u32) -> u32 {
-                    let bits = bit_width(max) as i32 - 1;
-                    self.read_bits_max_computed_unchecked(core::cmp::max(bits, 0), max)
-                }
-            
-                /// Same as `read_bits_max_unchecked` except that this function accepts the already computed
-                /// number of bits to at least read. For instance, if 20 is the max, then 4 bits are at least
-                /// needed.
-                ///
-                /// In general, prefer `read_bits_max_unchecked` for ease of use
-                ///
-                /// ```rust
-                /// # use bitter::LittleEndianBits;
-                /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
-                /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 8);
-                /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 15);
-                /// ```
-                #[inline]
-                fn read_bits_max_computed_unchecked(&mut self, bits: i32, max: u32) -> u32 {
-                    debug_assert!(core::cmp::max(bit_width(max) as i32, 1) == bits + 1);
-                    let data = self.read_u32_bits_unchecked(bits);
-            
-                    // If the next bit is on, what would our value be
-                    let up = data + (1 << bits);
-            
-                    // If we have the potential to equal or exceed max don't read the next bit, else read the
-                    // next bit
-                    if up >= max || !self.read_bit_unchecked() {
-                        data
                     } else {
-                        up
+                        let whole_bytes_left = diff - pos_bytes - 1;
+                        if whole_bytes_left == bytes_requested {
+                            (self.pos & 0x7) <= (8 - (bits & 0x7))
+                        } else {
+                            whole_bytes_left > bytes_requested
+                        }
                     }
                 }
             }
+
+            /// Returns if the bitstream has no bits left
+            ///
+            /// ```rust
+            /// # use bitter::{LittleEndianBits, BitOrder};
+            /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+            /// assert_eq!(bitter.is_empty(), false);
+            /// assert_eq!(bitter.read_u16_unchecked(), 0b0101_0101_1010_1010);
+            /// assert_eq!(bitter.is_empty(), true);
+            /// ```
+            fn is_empty(&self) -> bool {
+                self.approx_bytes_remaining() == 0
+            }
+
+            /// Reads a bit from the bitstream if available
+            ///
+            /// ```rust
+            /// # use bitter::{LittleEndianBits, BitOrder};
+            /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+            /// assert_eq!(bitter.read_bit(), Some(false));
+            /// ```
+            #[inline]
+            fn read_bit(&mut self) -> Option<bool> {
+                self.read_u32_bits(1).map(|x| x != 0)
+            }
+
+            /// *Assumes* there is at least one bit left in the stream.
+            ///
+            /// ```rust
+            /// # use bitter::{LittleEndianBits, BitOrder};
+            /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+            /// assert_eq!(bitter.read_bit_unchecked(), false);
+            /// ```
+            #[inline]
+            fn read_bit_unchecked(&mut self) -> bool {
+                self.read_u32_bits_unchecked(1) & 1 != 0
+            }
+
+            /// Reads a `f32` from the bitstream if available. The standard IEEE-754 binary layout float is
+            /// used.
+            #[inline]
+            fn read_f32(&mut self) -> Option<f32> {
+                self.read_u32().map(f32::from_bits)
+            }
+
+            /// Reads a `f32` from the bitstream. The standard IEEE-754 binary layout float is used.
+            #[inline]
+            fn read_f32_unchecked(&mut self) -> f32 {
+                f32::from_bits(self.read_u32_unchecked())
+            }
+
+            /// If the next bit is available and on, decode the next chunk of data (which can return None).
+            /// The return value can be one of the following:
+            ///
+            /// - None: Not enough data was available
+            /// - Some(None): Bit was off so data not decoded
+            /// - Some(x): Bit was on and data was decoded
+            ///
+            /// ```rust
+            /// # use bitter::{LittleEndianBits, BitOrder};
+            /// let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
+            /// assert_eq!(bitter.if_get(LittleEndianBits::read_u8), Some(Some(0x7f)));
+            /// assert_eq!(bitter.if_get(LittleEndianBits::read_u8), Some(None));
+            /// assert_eq!(bitter.if_get(LittleEndianBits::read_u8), None);
+            /// ```
+            #[cfg_attr(feature = "cargo-clippy", allow(clippy::option_option))]
+            fn if_get<T, F>(&mut self, mut f: F) -> Option<Option<T>>
+            where
+                F: FnMut(&mut Self) -> Option<T>,
+            {
+                self.read_bit()
+                    .and_then(|bit| if bit { f(self).map(Some) } else { Some(None) })
+            }
+
+            /// If the next bit is available and on, decode the next chunk of data.  The return value can
+            /// be one of the following:
+            ///
+            /// - Some(None): Bit was off so data not decoded
+            /// - Some(x): Bit was on and data was decoded
+            ///
+            /// ```rust
+            /// # use bitter::{LittleEndianBits, BitOrder};
+            /// let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
+            /// assert_eq!(bitter.if_get_unchecked(LittleEndianBits::read_u8_unchecked), Some(0x7f));
+            /// assert_eq!(bitter.if_get_unchecked(LittleEndianBits::read_u8_unchecked), None);
+            /// ```
+            /// # Panics
+            ///
+            /// Will panic if no data is left for the bit or for the data to be decoded.
+            fn if_get_unchecked<T, F>(&mut self, mut f: F) -> Option<T>
+            where
+                F: FnMut(&mut Self) -> T,
+            {
+                if self.read_bit_unchecked() {
+                    Some(f(self))
+                } else {
+                    None
+                }
+            }
+
+            /// Read the number of bytes needed to fill the provided buffer. Returns whether
+            /// the read was successful and the buffer has been filled.
+            ///
+            /// ```rust
+            /// # use bitter::{LittleEndianBits, BitOrder};
+            /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+            /// let mut buf = [0; 1];
+            /// assert_eq!(bitter.read_bit_unchecked(), false);
+            /// assert!(bitter.read_bytes(&mut buf));
+            /// assert_eq!(&buf, &[0b1101_0101]);
+            /// ```
+            fn read_bytes(&mut self, buf: &mut [u8]) -> bool {
+                let pos_bytes = self.pos >> 3;
+                let bytes_left = self.data.len() - pos_bytes;
+                if !self.is_mid_byte() && bytes_left >= buf.len() {
+                    let end = pos_bytes + buf.len();
+                    buf.copy_from_slice(&self.data[pos_bytes..end]);
+                    self.data = &self.data[end..];
+                    self.current_val = self.read();
+                    self.pos = 0;
+                    true
+                } else if bytes_left > buf.len() {
+                    for b in buf.iter_mut() {
+                        *b = self.read_u8_unchecked();
+                    }
+
+                    true
+                } else {
+                    false
+                }
+            }
+
+            /// Reads a value from the stream that consumes the same or fewer number of bits of a given
+            /// max. The value read will always be less than the given max.
+            ///
+            /// For example if one wants to read a value that is less than 20, bitter will read at least
+            /// 4 bits from the stream. If the 5th bit would cause the accumulator to exceed the max, the
+            /// 5th bit is not consumed. Else the 5th bit is consumed and added to accumulator. If the
+            /// necessary number of bits are not available, `None` is returned.
+            ///
+            /// ```rust
+            /// # use bitter::{LittleEndianBits, BitOrder};
+            /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
+            /// assert_eq!(bitter.read_bits_max(20), Some(8));
+            /// assert_eq!(bitter.read_bits_max(20), Some(15));
+            /// ```
+            #[inline]
+            fn read_bits_max(&mut self, max: u32) -> Option<u32> {
+                let bits = bit_width(max) as i32 - 1;
+                self.read_bits_max_computed(core::cmp::max(bits, 0), max)
+            }
+
+            /// Same as `read_bits_max` except that this function accepts the already computed number of
+            /// bits to at least read. For instance, if 20 is the max, then 4 bits are at least needed.
+            ///
+            /// In general, prefer `read_bits_max` for ease of use
+            ///
+            /// ```rust
+            /// # use bitter::{LittleEndianBits, BitOrder};
+            /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
+            /// assert_eq!(bitter.read_bits_max_computed(4, 20), Some(8));
+            /// assert_eq!(bitter.read_bits_max_computed(4, 20), Some(15));
+            /// ```
+            #[inline]
+            fn read_bits_max_computed(&mut self, bits: i32, max: u32) -> Option<u32> {
+                debug_assert!(core::cmp::max(bit_width(max) as i32, 1) == bits + 1);
+                self.read_u32_bits(bits).and_then(|data| {
+                    let up = data + (1 << bits);
+                    if up >= max {
+                        Some(data)
+                    } else {
+                        // Check the next bit
+                        self.read_bit().map(|x| if x { up } else { data })
+                    }
+                })
+            }
+
+            /// Reads a value from the stream that consumes the same or fewer number of bits of a given
+            /// max. The value read will always be less than the given max.
+            ///
+            /// For example if one wants to read a value that is less than 20, bitter will read at least
+            /// 4 bits from the stream. If the 5th bit would cause the accumulator to exceed the max, the
+            /// 5th bit is not consumed. Else the 5th bit is consumed and added to accumulator.
+            ///
+            /// ```rust
+            /// # use bitter::{LittleEndianBits, BitOrder};
+            /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
+            /// assert_eq!(bitter.read_bits_max_unchecked(20), 8);
+            /// assert_eq!(bitter.read_bits_max_unchecked(20), 15);
+            /// ```
+            #[inline]
+            fn read_bits_max_unchecked(&mut self, max: u32) -> u32 {
+                let bits = bit_width(max) as i32 - 1;
+                self.read_bits_max_computed_unchecked(core::cmp::max(bits, 0), max)
+            }
+
+            /// Same as `read_bits_max_unchecked` except that this function accepts the already computed
+            /// number of bits to at least read. For instance, if 20 is the max, then 4 bits are at least
+            /// needed.
+            ///
+            /// In general, prefer `read_bits_max_unchecked` for ease of use
+            ///
+            /// ```rust
+            /// # use bitter::{LittleEndianBits, BitOrder};
+            /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
+            /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 8);
+            /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 15);
+            /// ```
+            #[inline]
+            fn read_bits_max_computed_unchecked(&mut self, bits: i32, max: u32) -> u32 {
+                debug_assert!(core::cmp::max(bit_width(max) as i32, 1) == bits + 1);
+                let data = self.read_u32_bits_unchecked(bits);
+
+                // If the next bit is on, what would our value be
+                let up = data + (1 << bits);
+
+                // If we have the potential to equal or exceed max don't read the next bit, else read the
+                // next bit
+                if up >= max || !self.read_bit_unchecked() {
+                    data
+                } else {
+                    up
+                }
+            }
+        }
     };
 }
 
@@ -644,7 +646,7 @@ pub type NativeEndianBits<'a> = BigEndianBits<'a>;
 
 #[cfg(test)]
 mod tests {
-    use super::{bit_width, LittleEndianBits, BitOrder};
+    use super::{bit_width, BitOrder, LittleEndianBits};
 
     #[test]
     fn test_bit_reads() {
@@ -983,7 +985,8 @@ mod tests {
 
     #[test]
     fn test_u32_bits_unchecked() {
-        let mut bitter = LittleEndianBits::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
+        let mut bitter =
+            LittleEndianBits::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
         assert_eq!(bitter.read_u32_bits_unchecked(10), 0x1ff);
         assert_eq!(bitter.read_u32_bits_unchecked(10), 0x3b7);
         assert_eq!(bitter.read_u32_bits_unchecked(10), 0x3fe);
@@ -1009,7 +1012,8 @@ mod tests {
 
     #[test]
     fn test_i32_bits_unchecked() {
-        let mut bitter = LittleEndianBits::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
+        let mut bitter =
+            LittleEndianBits::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
         assert_eq!(bitter.read_i32_bits_unchecked(10), 0x1ff);
         assert_eq!(bitter.read_i32_bits_unchecked(10), 0x3b7);
         assert_eq!(bitter.read_i32_bits_unchecked(10), 0x3fe);
@@ -1184,7 +1188,10 @@ mod tests {
             bitter.if_get_unchecked(LittleEndianBits::read_u8_unchecked),
             Some(0x7f)
         );
-        assert_eq!(bitter.if_get_unchecked(LittleEndianBits::read_u8_unchecked), None);
+        assert_eq!(
+            bitter.if_get_unchecked(LittleEndianBits::read_u8_unchecked),
+            None
+        );
     }
 
     #[test]
