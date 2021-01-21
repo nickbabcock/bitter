@@ -66,10 +66,24 @@ pub trait BitOrder {
     fn read_f32(&mut self) -> Option<f32>;
     fn read_u32_bits(&mut self, bits: i32) -> Option<u32>;
     fn read_i32_bits(&mut self, bits: i32) -> Option<i32>;
+
+    /// If the next bit is available and on, decode the next chunk of data (which can return None).
+    /// The return value can be one of the following:
+    ///
+    /// - None: Not enough data was available
+    /// - Some(None): Bit was off so data not decoded
+    /// - Some(x): Bit was on and data was decoded
+    ///
+    /// ```rust
+    /// # use bitter::{LittleEndianBits, BitOrder};
+    /// let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
+    /// assert_eq!(bitter.if_get(BitOrder::read_u8), Some(Some(0x7f)));
+    /// assert_eq!(bitter.if_get(BitOrder::read_u8), Some(None));
+    /// assert_eq!(bitter.if_get(BitOrder::read_u8), None);
+    /// ```
     fn if_get<T, F>(&mut self, f: F) -> Option<Option<T>>
     where
         F: FnMut(&mut Self) -> Option<T>;
-    fn read_bytes(&mut self, buf: &mut [u8]) -> bool;
     fn read_bits_max(&mut self, max: u32) -> Option<u32>;
     fn read_bits_max_computed(&mut self, bits: i32, max: u32) -> Option<u32>;
 
@@ -94,6 +108,30 @@ pub trait BitOrder {
     fn approx_bytes_remaining(&self) -> usize;
     fn bits_remaining(&self) -> Option<usize>;
     fn has_bits_remaining(&self, bits: usize) -> bool;
+
+    /// Read the number of bytes needed to fill the provided buffer. Returns whether
+    /// the read was successful and the buffer has been filled.
+    ///
+    /// ```rust
+    /// # use bitter::{LittleEndianBits, BitOrder};
+    /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+    /// let mut buf = [0; 1];
+    /// assert_eq!(bitter.read_bit_unchecked(), false);
+    /// assert!(bitter.read_bytes(&mut buf));
+    /// assert_eq!(&buf, &[0b1101_0101]);
+    /// assert!(!bitter.read_bytes(&mut buf));
+    /// ```
+    fn read_bytes(&mut self, buf: &mut [u8]) -> bool;
+
+    /// Returns if the bitstream has no bits left
+    ///
+    /// ```rust
+    /// # use bitter::{LittleEndianBits, BitOrder};
+    /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+    /// assert_eq!(bitter.is_empty(), false);
+    /// assert_eq!(bitter.read_u16_unchecked(), 0b0101_0101_1010_1010);
+    /// assert_eq!(bitter.is_empty(), true);
+    /// ```    
     fn is_empty(&self) -> bool;
 }
 
@@ -171,33 +209,8 @@ macro_rules! generate_bitter_end {
                 // 0x38 = 32 | 24 | 16 | 8
                 self.pos & !0x38 != 0
             }
-
-            /// Assuming that `self.data` is pointing to data not yet seen. slurp up 8 bytes or the
-            /// rest of the data (whatever is smaller)
-            ///
-            /// Clippy lint can be unsuppressed once Clippy recognizes this pattern as correct.
-            /// https://github.com/rust-lang/rust-clippy/issues/2881
-            #[allow(clippy::cast_ptr_alignment)]
-            #[inline]
-            fn read(&mut self) -> u64 {
-                unsafe {
-                    if self.data.len() >= BYTE_WIDTH {
-                        core::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64)
-                            .$which()
-                    } else {
-                        let mut data: u64 = 0;
-                        let len = self.data.len();
-                        core::ptr::copy_nonoverlapping(
-                            self.data.as_ptr(),
-                            &mut data as *mut u64 as *mut u8,
-                            len,
-                        );
-                        self.last_read = true;
-                        data.$which()
-                    }
-                }
-            }
         }
+
         impl<'a> BitOrder for $name<'a> {
             gen_read!(read_u8, u8);
             gen_read!(read_i8, i8);
@@ -234,28 +247,7 @@ macro_rules! generate_bitter_end {
 
             #[inline]
             fn read_u64(&mut self) -> Option<u64> {
-                // While reading 64bit we can take advantage of an optimization trick not available to
-                // other reads as 64bits is the same as our cache size
-                if self.pos == 0 && !self.last_read {
-                    let ret = self.current_val;
-                    self.data = &self.data[BYTE_WIDTH..];
-                    self.current_val = self.read();
-                    Some(ret)
-                } else if !self.last_read {
-                    let bts = core::mem::size_of::<u64>() * 8;
-                    let new_data = &self.data[BYTE_WIDTH..];
-                    if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
-                        None
-                    } else {
-                        let little = self.current_val >> self.pos;
-                        self.data = new_data;
-                        self.current_val = self.read();
-                        let big = self.current_val << (bts - self.pos);
-                        Some(little + big)
-                    }
-                } else {
-                    None
-                }
+                $name::read_u64(self)
             }
 
             #[inline]
@@ -289,30 +281,7 @@ macro_rules! generate_bitter_end {
 
             #[inline]
             fn read_u32_bits(&mut self, bits: i32) -> Option<u32> {
-                let bts = bits as usize;
-                let new_pos = self.pos + bts;
-                if (!self.last_read && new_pos < BIT_WIDTH)
-                    || (self.last_read && new_pos <= self.data.len() * 8)
-                {
-                    let res = (self.current_val >> self.pos) & bit_mask(bts);
-                    self.pos = new_pos;
-                    Some(res as u32)
-                } else if !self.last_read {
-                    let new_data = &self.data[BYTE_WIDTH..];
-                    let left = new_pos - BIT_WIDTH;
-                    if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {
-                        None
-                    } else {
-                        let little = self.current_val >> self.pos;
-                        self.data = new_data;
-                        self.current_val = self.read();
-                        let big = (self.current_val & bit_mask(left)) << (bts - left);
-                        self.pos = left;
-                        Some((little + big) as u32)
-                    }
-                } else {
-                    None
-                }
+                self.read_bits(bits)
             }
 
             #[inline]
@@ -408,15 +377,6 @@ macro_rules! generate_bitter_end {
                 }
             }
 
-            /// Returns if the bitstream has no bits left
-            ///
-            /// ```rust
-            /// # use bitter::{LittleEndianBits, BitOrder};
-            /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
-            /// assert_eq!(bitter.is_empty(), false);
-            /// assert_eq!(bitter.read_u16_unchecked(), 0b0101_0101_1010_1010);
-            /// assert_eq!(bitter.is_empty(), true);
-            /// ```
             fn is_empty(&self) -> bool {
                 self.approx_bytes_remaining() == 0
             }
@@ -458,20 +418,6 @@ macro_rules! generate_bitter_end {
                 f32::from_bits(self.read_u32_unchecked())
             }
 
-            /// If the next bit is available and on, decode the next chunk of data (which can return None).
-            /// The return value can be one of the following:
-            ///
-            /// - None: Not enough data was available
-            /// - Some(None): Bit was off so data not decoded
-            /// - Some(x): Bit was on and data was decoded
-            ///
-            /// ```rust
-            /// # use bitter::{LittleEndianBits, BitOrder};
-            /// let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
-            /// assert_eq!(bitter.if_get(LittleEndianBits::read_u8), Some(Some(0x7f)));
-            /// assert_eq!(bitter.if_get(LittleEndianBits::read_u8), Some(None));
-            /// assert_eq!(bitter.if_get(LittleEndianBits::read_u8), None);
-            /// ```
             #[cfg_attr(feature = "cargo-clippy", allow(clippy::option_option))]
             fn if_get<T, F>(&mut self, mut f: F) -> Option<Option<T>>
             where
@@ -507,17 +453,6 @@ macro_rules! generate_bitter_end {
                 }
             }
 
-            /// Read the number of bytes needed to fill the provided buffer. Returns whether
-            /// the read was successful and the buffer has been filled.
-            ///
-            /// ```rust
-            /// # use bitter::{LittleEndianBits, BitOrder};
-            /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
-            /// let mut buf = [0; 1];
-            /// assert_eq!(bitter.read_bit_unchecked(), false);
-            /// assert!(bitter.read_bytes(&mut buf));
-            /// assert_eq!(&buf, &[0b1101_0101]);
-            /// ```
             fn read_bytes(&mut self, buf: &mut [u8]) -> bool {
                 let pos_bytes = self.pos >> 3;
                 let bytes_left = self.data.len() - pos_bytes;
@@ -643,6 +578,169 @@ pub type NativeEndianBits<'a> = LittleEndianBits<'a>;
 
 #[cfg(target_endian = "big")]
 pub type NativeEndianBits<'a> = BigEndianBits<'a>;
+
+impl<'a> LittleEndianBits<'a> {
+    /// Assuming that `self.data` is pointing to data not yet seen. slurp up 8 bytes or the
+    /// rest of the data (whatever is smaller)
+    ///
+    /// Clippy lint can be unsuppressed once Clippy recognizes this pattern as correct.
+    /// https://github.com/rust-lang/rust-clippy/issues/2881
+    #[allow(clippy::cast_ptr_alignment)]
+    #[inline]
+    fn read(&mut self) -> u64 {
+        unsafe {
+            if self.data.len() >= BYTE_WIDTH {
+                core::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64).to_le()
+            } else {
+                let mut data: u64 = 0;
+                let len = self.data.len();
+                core::ptr::copy_nonoverlapping(
+                    self.data.as_ptr(),
+                    &mut data as *mut u64 as *mut u8,
+                    len,
+                );
+                self.last_read = true;
+                data.to_le()
+            }
+        }
+    }
+
+    #[inline]
+    pub fn read_bits(&mut self, bits: i32) -> Option<u32> {
+        let bts = bits as usize;
+        let new_pos = self.pos + bts;
+        if (!self.last_read && new_pos < BIT_WIDTH)
+            || (self.last_read && new_pos <= self.data.len() * 8)
+        {
+            let res = (self.current_val >> self.pos) & bit_mask(bts);
+            self.pos = new_pos;
+            Some(res as u32)
+        } else if !self.last_read {
+            let new_data = &self.data[BYTE_WIDTH..];
+            let left = new_pos - BIT_WIDTH;
+            if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {
+                None
+            } else {
+                let little = self.current_val >> self.pos;
+                self.data = new_data;
+                self.current_val = self.read();
+                let big = (self.current_val & bit_mask(left)) << (bts - left);
+                self.pos = left;
+                Some((little + big) as u32)
+            }
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    fn read_u64(&mut self) -> Option<u64> {
+        // While reading 64bit we can take advantage of an optimization trick not available to
+        // other reads as 64bits is the same as our cache size
+        if self.pos == 0 && !self.last_read {
+            let ret = self.current_val;
+            self.data = &self.data[BYTE_WIDTH..];
+            self.current_val = self.read();
+            Some(ret)
+        } else if !self.last_read {
+            let bts = core::mem::size_of::<u64>() * 8;
+            let new_data = &self.data[BYTE_WIDTH..];
+            if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
+                None
+            } else {
+                let little = self.current_val >> self.pos;
+                self.data = new_data;
+                self.current_val = self.read();
+                let big = self.current_val << (bts - self.pos);
+                Some(little + big)
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> BigEndianBits<'a> {
+    /// Assuming that `self.data` is pointing to data not yet seen. slurp up 8 bytes or the
+    /// rest of the data (whatever is smaller)
+    ///
+    /// Clippy lint can be unsuppressed once Clippy recognizes this pattern as correct.
+    /// https://github.com/rust-lang/rust-clippy/issues/2881
+    #[allow(clippy::cast_ptr_alignment)]
+    #[inline]
+    fn read(&mut self) -> u64 {
+        unsafe {
+            if self.data.len() >= BYTE_WIDTH {
+                core::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64).to_be()
+            } else {
+                let mut data: u64 = 0;
+                let len = self.data.len();
+                core::ptr::copy_nonoverlapping(
+                    self.data.as_ptr(),
+                    &mut data as *mut u64 as *mut u8,
+                    len,
+                );
+                self.last_read = true;
+                data.to_be()
+            }
+        }
+    }
+
+    #[inline]
+    fn read_u64(&mut self) -> Option<u64> {
+        // While reading 64bit we can take advantage of an optimization trick not available to
+        // other reads as 64bits is the same as our cache size
+        if self.pos == 0 && !self.last_read {
+            let ret = self.current_val;
+            self.data = &self.data[BYTE_WIDTH..];
+            self.current_val = self.read();
+            Some(ret)
+        } else if !self.last_read {
+            let bts = core::mem::size_of::<u64>() * 8;
+            let new_data = &self.data[BYTE_WIDTH..];
+            if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
+                None
+            } else {
+                let big = self.current_val << self.pos;
+                self.data = new_data;
+                self.current_val = self.read();
+                let little = self.current_val >> (bts - self.pos);
+                Some(little + big)
+            }
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    fn read_bits(&mut self, bits: i32) -> Option<u32> {
+        let bts = bits as usize;
+        let new_pos = self.pos + bts;
+        if (!self.last_read && new_pos < BIT_WIDTH)
+            || (self.last_read && new_pos <= self.data.len() * 8)
+        {
+            let res = (self.current_val >> (BIT_WIDTH - self.pos - bts)) & bit_mask(bts);
+            self.pos = new_pos;
+            Some(res as u32)
+        } else if !self.last_read {
+            let new_data = &self.data[BYTE_WIDTH..];
+            let left = new_pos - BIT_WIDTH;
+            if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {
+                None
+            } else {
+                let mask = bit_mask(BIT_WIDTH - self.pos);
+                let big = (self.current_val & mask) << (new_pos - BIT_WIDTH);
+                self.data = new_data;
+                self.current_val = self.read();
+                let little = self.current_val.wrapping_shr((BIT_WIDTH - left) as u32);
+                self.pos = left;
+                Some((little + big) as u32)
+            }
+        } else {
+            None
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -1266,5 +1364,73 @@ mod tests {
         assert_eq!(bits.read_u32_bits(3), Some(2));
         assert_eq!(bits.read_u8(), Some(224));
         assert_eq!(bits.read_u64(), None);
+    }
+}
+
+#[cfg(test)]
+mod be_tests {
+    use super::{BigEndianBits, BitOrder};
+
+    #[test]
+    fn test_be_bit_bits_reads() {
+        let mut bitter = BigEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+        assert_eq!(bitter.read_u32_bits(1), Some(1));
+        assert_eq!(bitter.read_u32_bits(1), Some(0));
+        assert_eq!(bitter.read_u32_bits(1), Some(1));
+        assert_eq!(bitter.read_u32_bits(1), Some(0));
+        assert_eq!(bitter.read_u32_bits(1), Some(1));
+        assert_eq!(bitter.read_u32_bits(1), Some(0));
+        assert_eq!(bitter.read_u32_bits(1), Some(1));
+        assert_eq!(bitter.read_u32_bits(1), Some(0));
+        assert_eq!(bitter.read_u32_bits(1), Some(0));
+        assert_eq!(bitter.read_u32_bits(1), Some(1));
+        assert_eq!(bitter.read_u32_bits(1), Some(0));
+        assert_eq!(bitter.read_u32_bits(1), Some(1));
+        assert_eq!(bitter.read_u32_bits(1), Some(0));
+        assert_eq!(bitter.read_u32_bits(1), Some(1));
+        assert_eq!(bitter.read_u32_bits(1), Some(0));
+        assert_eq!(bitter.read_u32_bits(1), Some(1));
+
+        assert_eq!(bitter.read_u32_bits(1), None);
+    }
+
+    #[test]
+    fn test_whole_bytes() {
+        let mut bitter = BigEndianBits::new(&[
+            0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd, 0xff, 0xdd, 0xee, 0xff,
+            0xdd,
+        ]);
+        assert_eq!(bitter.read_u8(), Some(0xff));
+        assert_eq!(bitter.read_u16(), Some(u16::from_be_bytes([0xdd, 0xee])));
+        assert_eq!(
+            bitter.read_u64(),
+            Some(u64::from_be_bytes([
+                0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd, 0xff
+            ]))
+        );
+        assert_eq!(
+            bitter.read_u32(),
+            Some(u32::from_be_bytes([0xdd, 0xee, 0xff, 0xdd]))
+        );
+    }
+
+    #[test]
+    fn test_u32_bits_unchecked() {
+        let mut bitter =
+            BigEndianBits::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
+        assert_eq!(bitter.read_u32_bits(10), Some(0b11_1111_1111));
+        assert_eq!(bitter.read_u32_bits(10), Some(0b01_1101_1110));
+        assert_eq!(bitter.read_u32_bits(10), Some(0b11_1011_1111));
+        assert_eq!(bitter.read_u32_bits(10), Some(0b11_1101_1101));
+        assert_eq!(bitter.read_u32_bits(8), Some(0xee));
+        assert_eq!(bitter.read_u32_bits(8), Some(0xaa));
+        dbg!("CCCCCC");
+        assert_eq!(bitter.read_u32_bits(8), Some(0xbb));
+        dbg!("CCCCCC");
+        assert_eq!(bitter.read_u32_bits(8), Some(0xcc));
+        dbg!("CCCCCC");
+        assert_eq!(bitter.read_u32_bits(8), Some(0xdd));
+        dbg!("BBBBBB");
+        assert_eq!(bitter.read_bit(), None);
     }
 }
