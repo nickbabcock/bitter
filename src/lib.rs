@@ -536,7 +536,7 @@ macro_rules! generate_bitter_end {
             /// The eight bytes that current is pointing at
             current_val: u64,
 
-            last_read: bool,
+            end_pos: usize,
         }
 
         impl<'a> $name<'a> {
@@ -546,7 +546,7 @@ macro_rules! generate_bitter_end {
                     pos: 0,
                     current_val: 0,
                     data,
-                    last_read: false,
+                    end_pos: BIT_WIDTH,
                 };
 
                 res.current_val = res.read();
@@ -644,11 +644,11 @@ macro_rules! generate_bitter_end {
                             bytes_left > bytes_requested
                         }
                     } else {
-                        let whole_bytes_left = diff - pos_bytes - 1;
-                        if whole_bytes_left == bytes_requested {
+                        let whole_bytes_left = diff - pos_bytes;
+                        if whole_bytes_left == bytes_requested + 1 {
                             (self.pos & 0x7) <= (8 - (bits & 0x7))
                         } else {
-                            whole_bytes_left > bytes_requested
+                            whole_bytes_left > bytes_requested + 1
                         }
                     }
                 }
@@ -808,12 +808,12 @@ impl<'a> LittleEndianBits<'a> {
             } else {
                 let mut result: u64 = 0;
                 let len = self.data.len();
+                self.end_pos = len * 8;
                 core::ptr::copy_nonoverlapping(
                     self.data.as_ptr(),
                     &mut result as *mut u64 as *mut u8,
                     len,
                 );
-                self.last_read = true;
                 result.to_le()
             }
         }
@@ -823,19 +823,17 @@ impl<'a> LittleEndianBits<'a> {
     fn read_bits(&mut self, bits: i32) -> Option<u32> {
         let bts = bits as usize;
         let new_pos = self.pos + bts;
-        if (!self.last_read && new_pos < BIT_WIDTH)
-            || (self.last_read && new_pos <= self.data.len() * 8)
-        {
+        if new_pos <= self.end_pos {
             let res = (self.current_val >> self.pos) & bit_mask(bts);
             self.pos = new_pos;
             Some(res as u32)
-        } else if !self.last_read {
+        } else if self.end_pos == BIT_WIDTH {
             let new_data = &self.data[BYTE_WIDTH..];
             let left = new_pos - BIT_WIDTH;
             if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {
                 None
             } else {
-                let little = self.current_val >> self.pos;
+                let little = self.current_val.wrapping_shr(self.pos as u32);
                 self.data = new_data;
                 self.current_val = self.read();
                 let big = (self.current_val & bit_mask(left)) << (bts - left);
@@ -851,18 +849,18 @@ impl<'a> LittleEndianBits<'a> {
     fn read_u64(&mut self) -> Option<u64> {
         // While reading 64bit we can take advantage of an optimization trick not available to
         // other reads as 64bits is the same as our cache size
-        if self.pos == 0 && !self.last_read {
+        if self.end_pos - self.pos == BIT_WIDTH {
             let ret = self.current_val;
             self.data = &self.data[BYTE_WIDTH..];
             self.current_val = self.read();
             Some(ret)
-        } else if !self.last_read {
+        } else if self.end_pos == BIT_WIDTH {
             let bts = core::mem::size_of::<u64>() * 8;
             let new_data = &self.data[BYTE_WIDTH..];
             if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
                 None
             } else {
-                let little = self.current_val >> self.pos;
+                let little = self.current_val.wrapping_shr(self.pos as u32);
                 self.data = new_data;
                 self.current_val = self.read();
                 let big = self.current_val << (bts - self.pos);
@@ -927,12 +925,12 @@ impl<'a> BigEndianBits<'a> {
             } else {
                 let mut result: u64 = 0;
                 let len = self.data.len();
+                self.end_pos = len * 8;
                 core::ptr::copy_nonoverlapping(
                     self.data.as_ptr(),
                     &mut result as *mut u64 as *mut u8,
                     len,
                 );
-                self.last_read = true;
                 result.to_be()
             }
         }
@@ -942,12 +940,12 @@ impl<'a> BigEndianBits<'a> {
     fn read_u64(&mut self) -> Option<u64> {
         // While reading 64bit we can take advantage of an optimization trick not available to
         // other reads as 64bits is the same as our cache size
-        if self.pos == 0 && !self.last_read {
+        if self.end_pos - self.pos == BIT_WIDTH {
             let ret = self.current_val;
             self.data = &self.data[BYTE_WIDTH..];
             self.current_val = self.read();
             Some(ret)
-        } else if !self.last_read {
+        } else if self.end_pos == BIT_WIDTH {
             let bts = core::mem::size_of::<u64>() * 8;
             let new_data = &self.data[BYTE_WIDTH..];
             if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
@@ -987,13 +985,11 @@ impl<'a> BigEndianBits<'a> {
     fn read_bits(&mut self, bits: i32) -> Option<u32> {
         let bts = bits as usize;
         let new_pos = self.pos + bts;
-        if (!self.last_read && new_pos < BIT_WIDTH)
-            || (self.last_read && new_pos <= self.data.len() * 8)
-        {
+        if new_pos <= self.end_pos {
             let res = (self.current_val >> (BIT_WIDTH - new_pos)) & bit_mask(bts);
             self.pos = new_pos;
             Some(res as u32)
-        } else if !self.last_read {
+        } else if self.end_pos == BIT_WIDTH {
             let new_data = &self.data[BYTE_WIDTH..];
             let left = new_pos - BIT_WIDTH;
             if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {

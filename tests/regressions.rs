@@ -48,3 +48,18 @@ fn read_byte_eq() {
     assert_eq!(lebits.read_u8(), bebits.read_u8());
     assert_eq!(lebits.read_u8(), bebits.read_u8());
 }
+fn remaining_bits_le() {
+    let data: &[u8] = &[0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let mut lebits = LittleEndianBits::new(data);
+    assert!(lebits.has_bits_remaining(65));
+    for _ in 0..65 {
+        assert!(!lebits.read_bit().unwrap());
+    }
+}
+
+#[test]
+fn has_bits_remaining_bit_reads_test_case() {
+    let data = &[0, 0, 0, 0, 0, 0, 0, 0];
+    let mut bits = LittleEndianBits::new(data);
+    assert!((1..128).all(|_x| bits.has_bits_remaining(1) == bits.read_bit().is_some()))
+}
