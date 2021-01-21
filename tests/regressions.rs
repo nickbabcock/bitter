@@ -1,7 +1,7 @@
 extern crate bitter;
 extern crate bitterv1;
 
-use bitter::BitOrder;
+use bitter::{BigEndianBits, BitOrder, LittleEndianBits};
 
 #[test]
 fn regression1() {
@@ -13,4 +13,17 @@ fn regression1() {
     assert_eq!(bits.read_u8(), bitsv1.read_u8());
     assert_eq!(bits.read_bit(), bitsv1.read_bit());
     assert_eq!(bits.read_u32_bits(13), bitsv1.read_u32_bits(13));
+}
+
+#[test]
+fn test_f32_endian() {
+    let bits = 0x41480000u32;
+    let le_data = bits.to_le_bytes();
+    let be_data = bits.to_be_bytes();
+
+    let mut lebits = LittleEndianBits::new(&le_data);
+    let mut bebits = BigEndianBits::new(&be_data);
+
+    assert_eq!(lebits.read_f32(), Some(12.5f32));
+    assert_eq!(bebits.read_f32(), Some(12.5f32));
 }
