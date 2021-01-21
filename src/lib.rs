@@ -18,7 +18,7 @@ Bitter takes a slice of byte data and reads bits in a desired endian format plat
 ## Example
 
 ```rust
-use bitter::{BitOrder, LittleEndianBits};
+use bitter::{BitReader, LittleEndianBits};
 let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
 assert_eq!(bitter.read_bit(), Some(true));
 assert_eq!(bitter.read_u8(), Some(0x7f));
@@ -36,7 +36,7 @@ Tips:
 Below is a demonstration of the unchecked APIs with a guard to ensure safety:
 
 ```rust
-use bitter::{BitOrder, LittleEndianBits};
+use bitter::{BitReader, LittleEndianBits};
 let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
 if bitter.has_bits_remaining(16) {
     assert_eq!(bitter.read_bit_unchecked(), true);
@@ -48,7 +48,7 @@ if bitter.has_bits_remaining(16) {
 Another guard usage:
 
 ```rust
-use bitter::{BitOrder, LittleEndianBits};
+use bitter::{BitReader, LittleEndianBits};
 let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
 if bitter.has_bits_remaining(16) {
     for _ in 0..8 {
@@ -74,11 +74,11 @@ bitter = { version = "x", default-features = false }
 #![warn(missing_docs)]
 
 /// Read bits in a given endian order
-pub trait BitOrder {
+pub trait BitReader {
     /// Consume a bit and return if the bit was enabled
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let mut bits = BigEndianBits::new(&[0b1001_0011]);
     /// assert_eq!(bits.read_bit(), Some(true));
     /// assert_eq!(bits.read_bit(), Some(false));
@@ -88,7 +88,7 @@ pub trait BitOrder {
     /// Consume 8 bits and return the deserialized byte
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let mut bits = BigEndianBits::new(&[0b1001_0011]);
     /// assert_eq!(bits.read_u8(), Some(0b1001_0011));
     /// ```
@@ -97,7 +97,7 @@ pub trait BitOrder {
     /// Consume 8 bits and return the deserialized byte
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let mut bits = BigEndianBits::new(&[0b1001_0011]);
     /// assert_eq!(bits.read_i8(), Some(-109));
     /// ```
@@ -106,7 +106,7 @@ pub trait BitOrder {
     /// Consume 16 bits and return the deserialized short
     ///
     /// ```rust
-    /// use bitter::{BitOrder, LittleEndianBits};
+    /// use bitter::{BitReader, LittleEndianBits};
     /// let mut bits = LittleEndianBits::new(&[0b1001_0011, 0b1111_1111]);
     /// assert_eq!(bits.read_u16(), Some(0xff93));
     /// ```
@@ -115,7 +115,7 @@ pub trait BitOrder {
     /// Consume 16 bits and return the deserialized short
     ///
     /// ```rust
-    /// use bitter::{BitOrder, LittleEndianBits};
+    /// use bitter::{BitReader, LittleEndianBits};
     /// let data = (-500i16).to_le_bytes();
     /// let mut bits = LittleEndianBits::new(&data);
     /// assert_eq!(bits.read_i16(), Some(-500));
@@ -125,7 +125,7 @@ pub trait BitOrder {
     /// Consume 32 bits and return the deserialized int
     ///
     /// ```rust
-    /// use bitter::{BitOrder, LittleEndianBits};
+    /// use bitter::{BitReader, LittleEndianBits};
     /// let data = (22000u32).to_le_bytes();
     /// let mut bits = LittleEndianBits::new(&data);
     /// assert_eq!(bits.read_u32(), Some(22000u32));
@@ -135,7 +135,7 @@ pub trait BitOrder {
     /// Consume 32 bits and return the deserialized int
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let data = (-22000i32).to_be_bytes();
     /// let mut bits = BigEndianBits::new(&data);
     /// assert_eq!(bits.read_i32(), Some(-22000i32));
@@ -145,7 +145,7 @@ pub trait BitOrder {
     /// Consume 64 bits and return the deserialized long
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let data = (22000u64).to_be_bytes();
     /// let mut bits = BigEndianBits::new(&data);
     /// assert_eq!(bits.read_u64(), Some(22000u64));
@@ -155,7 +155,7 @@ pub trait BitOrder {
     /// Consume 64 bits and return the deserialized long
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let data = (-22000i64).to_be_bytes();
     /// let mut bits = BigEndianBits::new(&data);
     /// assert_eq!(bits.read_i64(), Some(-22000i64));
@@ -165,7 +165,7 @@ pub trait BitOrder {
     /// Consume 32 bits and return the deserialized floating point
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let data = 12.5f32.to_be_bytes();
     /// let mut bits = BigEndianBits::new(&data);
     /// assert_eq!(bits.read_f32(), Some(12.5f32));
@@ -176,7 +176,7 @@ pub trait BitOrder {
     /// and returns the unsigned result
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let mut bitter = BigEndianBits::new(&[0xff, 0x00, 0xab, 0xcd]);
     /// assert_eq!(bitter.read_u32_bits(32), Some(0xff00abcd));
     /// ```
@@ -186,7 +186,7 @@ pub trait BitOrder {
     /// and returns the signed result.
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let mut bitter = BigEndianBits::new(&[0xff, 0x00, 0xab, 0xcd]);
     /// let result = i32::from_be_bytes([0xff, 0x00, 0xab, 0xcd]);
     /// assert_eq!(bitter.read_i32_bits(32), Some(result));
@@ -201,11 +201,11 @@ pub trait BitOrder {
     /// - Some(x): Bit was on and data was decoded
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitOrder};
+    /// use bitter::{LittleEndianBits, BitReader};
     /// let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
-    /// assert_eq!(bitter.if_get(BitOrder::read_u8), Some(Some(0x7f)));
-    /// assert_eq!(bitter.if_get(BitOrder::read_u8), Some(None));
-    /// assert_eq!(bitter.if_get(BitOrder::read_u8), None);
+    /// assert_eq!(bitter.if_get(BitReader::read_u8), Some(Some(0x7f)));
+    /// assert_eq!(bitter.if_get(BitReader::read_u8), Some(None));
+    /// assert_eq!(bitter.if_get(BitReader::read_u8), None);
     /// ```
     fn if_get<T, F>(&mut self, f: F) -> Option<Option<T>>
     where
@@ -220,7 +220,7 @@ pub trait BitOrder {
     /// necessary number of bits are not available, `None` is returned.
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitOrder};
+    /// use bitter::{LittleEndianBits, BitReader};
     /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
     /// assert_eq!(bitter.read_bits_max(20), Some(8));
     /// assert_eq!(bitter.read_bits_max(20), Some(15));
@@ -234,7 +234,7 @@ pub trait BitOrder {
     /// computed max can lead to undefined behavior
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitOrder};
+    /// use bitter::{LittleEndianBits, BitReader};
     /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
     /// assert_eq!(bitter.read_bits_max_computed(4, 20), Some(8));
     /// assert_eq!(bitter.read_bits_max_computed(4, 20), Some(15));
@@ -244,7 +244,7 @@ pub trait BitOrder {
     /// *Assumes* there is at least one bit left in the stream.
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitOrder};
+    /// use bitter::{LittleEndianBits, BitReader};
     /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
     /// assert_eq!(bitter.read_bit_unchecked(), false);
     /// ```
@@ -253,7 +253,7 @@ pub trait BitOrder {
     /// *Assumes* there is at least 8 bits left in the stream.
     ///
     /// ```rust
-    /// use bitter::{BigEndianBits, BitOrder};
+    /// use bitter::{BigEndianBits, BitReader};
     /// let mut bitter = BigEndianBits::new(&[0b1010_1010, 0b0101_0101]);
     /// assert_eq!(bitter.read_u8_unchecked(), 0b1010_1010);
     /// ```
@@ -262,7 +262,7 @@ pub trait BitOrder {
     /// *Assumes* there is at least 8 bits left in the stream.
     ///
     /// ```rust
-    /// use bitter::{BigEndianBits, BitOrder};
+    /// use bitter::{BigEndianBits, BitReader};
     /// let mut bitter = BigEndianBits::new(&[0b1010_1010, 0b0101_0101]);
     /// assert_eq!(bitter.read_i8_unchecked(), i8::from_be_bytes([0b1010_1010]));
     /// ```
@@ -271,7 +271,7 @@ pub trait BitOrder {
     /// Consume 16 bits and return the deserialized short
     ///
     /// ```rust
-    /// use bitter::{BitOrder, LittleEndianBits};
+    /// use bitter::{BitReader, LittleEndianBits};
     /// let mut bits = LittleEndianBits::new(&[0b1001_0011, 0b1111_1111]);
     /// assert_eq!(bits.read_u16_unchecked(), 0xff93);
     /// ```
@@ -280,7 +280,7 @@ pub trait BitOrder {
     /// Consume 16 bits and return the deserialized short
     ///
     /// ```rust
-    /// use bitter::{BitOrder, LittleEndianBits};
+    /// use bitter::{BitReader, LittleEndianBits};
     /// let data = (-500i16).to_le_bytes();
     /// let mut bits = LittleEndianBits::new(&data);
     /// assert_eq!(bits.read_i16_unchecked(), -500);
@@ -290,7 +290,7 @@ pub trait BitOrder {
     /// Consume 32 bits and return the deserialized int
     ///
     /// ```rust
-    /// use bitter::{BitOrder, LittleEndianBits};
+    /// use bitter::{BitReader, LittleEndianBits};
     /// let data = (22000u32).to_le_bytes();
     /// let mut bits = LittleEndianBits::new(&data);
     /// assert_eq!(bits.read_u32_unchecked(), 22000u32);
@@ -300,7 +300,7 @@ pub trait BitOrder {
     /// Consume 32 bits and return the deserialized int
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let data = (-22000i32).to_be_bytes();
     /// let mut bits = BigEndianBits::new(&data);
     /// assert_eq!(bits.read_i32_unchecked(), -22000i32);
@@ -310,7 +310,7 @@ pub trait BitOrder {
     /// Consume 64 bits and return the deserialized long
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let data = (22000u64).to_be_bytes();
     /// let mut bits = BigEndianBits::new(&data);
     /// assert_eq!(bits.read_u64_unchecked(), 22000u64);
@@ -320,7 +320,7 @@ pub trait BitOrder {
     /// Consume 64 bits and return the deserialized long
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let data = (-22000i64).to_be_bytes();
     /// let mut bits = BigEndianBits::new(&data);
     /// assert_eq!(bits.read_i64_unchecked(), -22000i64);
@@ -330,7 +330,7 @@ pub trait BitOrder {
     /// Consume 32 bits and return the deserialized floating point
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let data = 12.5f32.to_be_bytes();
     /// let mut bits = BigEndianBits::new(&data);
     /// assert_eq!(bits.read_f32_unchecked(), 12.5f32);
@@ -341,9 +341,9 @@ pub trait BitOrder {
     /// and returns the unsigned result
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let mut bitter = BigEndianBits::new(&[0xff, 0x00, 0xab, 0xcd]);
-    /// assert_eq!(bitter.read_u32_bits(32), 0xff00abcd);
+    /// assert_eq!(bitter.read_u32_bits_unchecked(32), 0xff00abcd);
     /// ```
     fn read_u32_bits_unchecked(&mut self, bits: i32) -> u32;
 
@@ -351,10 +351,10 @@ pub trait BitOrder {
     /// and returns the signed result.
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let mut bitter = BigEndianBits::new(&[0xff, 0x00, 0xab, 0xcd]);
     /// let result = i32::from_be_bytes([0xff, 0x00, 0xab, 0xcd]);
-    /// assert_eq!(bitter.read_i32_bits(32), result);
+    /// assert_eq!(bitter.read_i32_bits_unchecked(32), result);
     /// ```
     fn read_i32_bits_unchecked(&mut self, bits: i32) -> i32;
 
@@ -365,7 +365,7 @@ pub trait BitOrder {
     /// - Some(x): Bit was on and data was decoded
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitOrder};
+    /// use bitter::{LittleEndianBits, BitReader};
     /// let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
     /// assert_eq!(bitter.if_get_unchecked(LittleEndianBits::read_u8_unchecked), Some(0x7f));
     /// assert_eq!(bitter.if_get_unchecked(LittleEndianBits::read_u8_unchecked), None);
@@ -383,7 +383,7 @@ pub trait BitOrder {
     /// necessary number of bits are not available, `None` is returned.
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitOrder};
+    /// use bitter::{LittleEndianBits, BitReader};
     /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
     /// assert_eq!(bitter.read_bits_max_unchecked(20), 8);
     /// assert_eq!(bitter.read_bits_max_unchecked(20), 15);
@@ -397,7 +397,7 @@ pub trait BitOrder {
     /// computed max can lead to undefined behavior
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitOrder};
+    /// use bitter::{LittleEndianBits, BitReader};
     /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
     /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 8);
     /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 15);
@@ -410,7 +410,7 @@ pub trait BitOrder {
     /// than sign to avoid undefined behavior with unchecked reads
     ///
     /// ```rust
-    /// # use bitter::{LittleEndianBits, BitOrder};
+    /// # use bitter::{LittleEndianBits, BitReader};
     /// let mut bitter = LittleEndianBits::new(&[0xff]);
     /// assert_eq!(bitter.approx_bytes_remaining(), 1);
     /// assert!(bitter.read_bit().is_some());
@@ -426,7 +426,7 @@ pub trait BitOrder {
     /// ergonomic alternative.
     ///
     /// ```rust
-    /// # use bitter::{LittleEndianBits, BitOrder};
+    /// # use bitter::{LittleEndianBits, BitReader};
     /// let mut bitter = LittleEndianBits::new(&[0xff]);
     /// assert_eq!(bitter.bits_remaining(), Some(8));
     /// assert!(bitter.read_bit().is_some());
@@ -440,7 +440,7 @@ pub trait BitOrder {
     /// and ergonomic way than `bits_remaining`.
     ///
     /// ```rust
-    /// # use bitter::{LittleEndianBits, BitOrder};
+    /// # use bitter::{LittleEndianBits, BitReader};
     /// let mut bitter = LittleEndianBits::new(&[0xff]);
     /// assert!(bitter.has_bits_remaining(7));
     /// assert!(bitter.has_bits_remaining(8));
@@ -460,7 +460,7 @@ pub trait BitOrder {
     /// the read was successful and the buffer has been filled.
     ///
     /// ```rust
-    /// # use bitter::{LittleEndianBits, BitOrder};
+    /// # use bitter::{LittleEndianBits, BitReader};
     /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
     /// let mut buf = [0; 1];
     /// assert_eq!(bitter.read_bit_unchecked(), false);
@@ -473,7 +473,7 @@ pub trait BitOrder {
     /// Returns if the bitstream has no bits left
     ///
     /// ```rust
-    /// # use bitter::{LittleEndianBits, BitOrder};
+    /// # use bitter::{LittleEndianBits, BitReader};
     /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
     /// assert_eq!(bitter.is_empty(), false);
     /// assert_eq!(bitter.read_u16_unchecked(), 0b0101_0101_1010_1010);
@@ -560,7 +560,7 @@ macro_rules! generate_bitter_end {
             }
         }
 
-        impl<'a> BitOrder for $name<'a> {
+        impl<'a> BitReader for $name<'a> {
             gen_read!(read_u8, u8);
             gen_read!(read_i8, i8);
             gen_read!(read_u16, u16);
@@ -767,7 +767,7 @@ generate_bitter_end!(
     /// Reads bits in the little-endian format
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let mut lebits = BigEndianBits::new(&[0b1000_0000]);
     /// assert_eq!(lebits.read_bit(), Some(true));
     /// ```
@@ -777,7 +777,7 @@ generate_bitter_end!(
     /// Reads bits in the big-endian format
     ///
     /// ```rust
-    /// use bitter::{BitOrder, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianBits};
     /// let mut bebits = BigEndianBits::new(&[0b1000_0000]);
     /// assert_eq!(bebits.read_bit(), Some(true));
     /// ```
@@ -1034,7 +1034,7 @@ impl<'a> BigEndianBits<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{bit_width, BitOrder, LittleEndianBits};
+    use super::{bit_width, BitReader, LittleEndianBits};
 
     #[test]
     fn test_bit_reads() {
@@ -1659,7 +1659,7 @@ mod tests {
 
 #[cfg(test)]
 mod be_tests {
-    use super::{BigEndianBits, BitOrder};
+    use super::{BigEndianBits, BitReader};
 
     #[test]
     fn test_be_bit_bits_reads() {

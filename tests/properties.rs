@@ -4,7 +4,7 @@ extern crate quickcheck_macros;
 extern crate bitter;
 extern crate bitterv1;
 
-use bitter::{BigEndianBits, BitOrder, LittleEndianBits};
+use bitter::{BigEndianBits, BitReader, LittleEndianBits};
 
 #[quickcheck]
 fn read_bytes_eq(k1: u8, data: Vec<u8>) -> bool {
@@ -135,7 +135,7 @@ fn read_u64_unchecked_eq(data: Vec<u8>) -> bool {
 
 #[quickcheck]
 fn has_bits_remaining_bit_reads_ends(reads: u8, data: Vec<u8>) -> bool {
-    fn test_fn<B: BitOrder>(bits: &mut B, reads: u8) -> bool {
+    fn test_fn<B: BitReader>(bits: &mut B, reads: u8) -> bool {
         let mut result = true;
         if bits.has_bits_remaining(usize::from(reads)) {
             for _ in 0..reads {

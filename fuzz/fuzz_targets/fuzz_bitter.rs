@@ -1,6 +1,6 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
-use bitter::{LittleEndianBits, BitOrder};
+use bitter::{LittleEndianBits, BitReader};
 
 fuzz_target!(|data: &[u8]| {
     let mut bits = LittleEndianBits::new(data);

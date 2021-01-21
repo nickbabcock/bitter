@@ -1,7 +1,7 @@
 extern crate bitter;
 extern crate bitterv1;
 
-use bitter::{BigEndianBits, BitOrder, LittleEndianBits};
+use bitter::{BigEndianBits, BitReader, LittleEndianBits};
 
 #[test]
 fn regression1() {

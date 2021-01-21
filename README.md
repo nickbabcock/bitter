@@ -20,7 +20,7 @@ Bitter takes a slice of byte data and reads bits in a desired endian format plat
 ## Example
 
 ```rust
-use bitter::{BitOrder, LittleEndianBits};
+use bitter::{BitReader, LittleEndianBits};
 let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
 assert_eq!(bitter.read_bit(), Some(true));
 assert_eq!(bitter.read_u8(), Some(0x7f));
@@ -38,7 +38,7 @@ Tips:
 Below is a demonstration of the unchecked APIs with a guard to ensure safety:
 
 ```rust
-use bitter::{BitOrder, LittleEndianBits};
+use bitter::{BitReader, LittleEndianBits};
 let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
 if bitter.has_bits_remaining(16) {
     assert_eq!(bitter.read_bit_unchecked(), true);
@@ -50,7 +50,7 @@ if bitter.has_bits_remaining(16) {
 Another guard usage:
 
 ```rust
-use bitter::{BitOrder, LittleEndianBits};
+use bitter::{BitReader, LittleEndianBits};
 let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
 if bitter.has_bits_remaining(16) {
     for _ in 0..8 {
