@@ -737,37 +737,12 @@ macro_rules! generate_bitter_end {
                 })
             }
 
-            /// Reads a value from the stream that consumes the same or fewer number of bits of a given
-            /// max. The value read will always be less than the given max.
-            ///
-            /// For example if one wants to read a value that is less than 20, bitter will read at least
-            /// 4 bits from the stream. If the 5th bit would cause the accumulator to exceed the max, the
-            /// 5th bit is not consumed. Else the 5th bit is consumed and added to accumulator.
-            ///
-            /// ```rust
-            /// # use bitter::{LittleEndianBits, BitOrder};
-            /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
-            /// assert_eq!(bitter.read_bits_max_unchecked(20), 8);
-            /// assert_eq!(bitter.read_bits_max_unchecked(20), 15);
-            /// ```
             #[inline]
             fn read_bits_max_unchecked(&mut self, max: u32) -> u32 {
                 let bits = bit_width(max) as i32 - 1;
                 self.read_bits_max_computed_unchecked(core::cmp::max(bits, 0), max)
             }
 
-            /// Same as `read_bits_max_unchecked` except that this function accepts the already computed
-            /// number of bits to at least read. For instance, if 20 is the max, then 4 bits are at least
-            /// needed.
-            ///
-            /// In general, prefer `read_bits_max_unchecked` for ease of use
-            ///
-            /// ```rust
-            /// # use bitter::{LittleEndianBits, BitOrder};
-            /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
-            /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 8);
-            /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 15);
-            /// ```
             #[inline]
             fn read_bits_max_computed_unchecked(&mut self, bits: i32, max: u32) -> u32 {
                 debug_assert!(core::cmp::max(bit_width(max) as i32, 1) == bits + 1);
