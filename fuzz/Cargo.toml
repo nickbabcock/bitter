@@ -30,3 +30,7 @@ path = "fuzz_targets/fuzz_bitter.rs"
 [[bin]]
 name = "fuzz_simple"
 path = "fuzz_targets/fuzz_simple.rs"
+
+[[bin]]
+name = "fuzz_endian"
+path = "fuzz_targets/fuzz_endian.rs"

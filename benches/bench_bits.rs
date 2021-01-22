@@ -7,9 +7,9 @@ extern crate criterion;
 extern crate nom;
 extern crate bitterv1;
 
-use bitreader::BitReader;
+use bitreader::BitReader as BR;
 use bitstream_io::{BitReader as bio_br, LE};
-use bitter::BitGet;
+use bitter::{BitReader, LittleEndianReader};
 use bitterv1::BitGet as BitGetV1;
 use criterion::{black_box, Benchmark, Criterion, ParameterizedBenchmark, Throughput};
 use std::io::Cursor;
@@ -24,7 +24,7 @@ fn bitting(c: &mut Criterion) {
         "bitter-checked",
         |b, param| {
             b.iter(|| {
-                let mut bitter = BitGet::new(&DATA[..]);
+                let mut bitter = LittleEndianReader::new(&DATA[..]);
                 for _ in 0..ITER {
                     black_box(bitter.read_u32_bits(*param));
                 }
@@ -34,7 +34,7 @@ fn bitting(c: &mut Criterion) {
     )
     .with_function("bitter-unchecked", |b, param| {
         b.iter(|| {
-            let mut bitter = BitGet::new(&DATA[..]);
+            let mut bitter = LittleEndianReader::new(&DATA[..]);
             for _ in 0..ITER {
                 black_box(bitter.read_u32_bits_unchecked(*param));
             }
@@ -50,7 +50,7 @@ fn bitting(c: &mut Criterion) {
     })
     .with_function("bitreader", |b, param| {
         b.iter(|| {
-            let mut bitter = BitReader::new(&DATA);
+            let mut bitter = BR::new(&DATA);
             for _ in 0..ITER {
                 black_box(bitter.read_u32(*param as u8).unwrap());
             }
@@ -100,22 +100,23 @@ macro_rules! ben {
 fn eight_bits(c: &mut Criterion) {
     let bench = Benchmark::new(
         "bitter_arbitrary_unchecked",
-        ben!(BitGet::new(&DATA), |x: &mut BitGet| x
+        ben!(LittleEndianReader::new(&DATA), |x: &mut LittleEndianReader| x
             .read_u32_bits_unchecked(8)),
     )
     .with_function(
         "bitter_arbitrary_checked",
-        ben!(BitGet::new(&DATA), |x: &mut BitGet| x
+        ben!(LittleEndianReader::new(&DATA), |x: &mut LittleEndianReader| x
             .read_u32_bits(8)
             .unwrap()),
     )
     .with_function(
         "bitter_byte_unchecked",
-        ben!(BitGet::new(&DATA), |x: &mut BitGet| x.read_u8_unchecked()),
+        ben!(LittleEndianReader::new(&DATA), |x: &mut LittleEndianReader| x
+            .read_u8_unchecked()),
     )
     .with_function(
         "bitter_byte_checked",
-        ben!(BitGet::new(&DATA), |x: &mut BitGet| x
+        ben!(LittleEndianReader::new(&DATA), |x: &mut LittleEndianReader| x
             .read_u8()
             .map(u32::from)),
     )
@@ -127,11 +128,13 @@ fn eight_bits(c: &mut Criterion) {
 fn sixtyfour_bits(c: &mut Criterion) {
     let bench = Benchmark::new(
         "bitter_byte_unchecked",
-        ben!(BitGet::new(&DATA), |x: &mut BitGet| x.read_u64_unchecked()),
+        ben!(LittleEndianReader::new(&DATA), |x: &mut LittleEndianReader| x
+            .read_u64_unchecked()),
     )
     .with_function(
         "bitter_byte_checked",
-        ben!(BitGet::new(&DATA), |x: &mut BitGet| x.read_u64()),
+        ben!(LittleEndianReader::new(&DATA), |x: &mut LittleEndianReader| x
+            .read_u64()),
     )
     .throughput(Throughput::Bytes(
         ::std::mem::size_of::<u64>() as u64 * ITER,
@@ -142,13 +145,13 @@ fn sixtyfour_bits(c: &mut Criterion) {
 
 fn remaining(c: &mut Criterion) {
     let bench = Benchmark::new("bitter_approx_bytes", |b| {
-        b.iter(|| BitGet::new(&DATA).approx_bytes_remaining())
+        b.iter(|| LittleEndianReader::new(&DATA).approx_bytes_remaining())
     })
     .with_function("bitter_has_remaining", |b| {
-        b.iter(|| BitGet::new(&DATA).has_bits_remaining(16))
+        b.iter(|| LittleEndianReader::new(&DATA).has_bits_remaining(16))
     })
     .with_function("bitter_bits_remaining", |b| {
-        b.iter(|| BitGet::new(&DATA).bits_remaining())
+        b.iter(|| LittleEndianReader::new(&DATA).bits_remaining())
     });
 
     c.bench("remaining", bench);
@@ -157,7 +160,7 @@ fn remaining(c: &mut Criterion) {
 fn read_bits_max(c: &mut Criterion) {
     let bench = Benchmark::new("read_bits_max_checked", |b| {
         b.iter(|| {
-            let mut bitter = BitGet::new(&DATA[..]);
+            let mut bitter = LittleEndianReader::new(&DATA[..]);
             for _ in 0..ITER {
                 black_box(bitter.read_bits_max(22));
             }
@@ -165,7 +168,7 @@ fn read_bits_max(c: &mut Criterion) {
     })
     .with_function("read_bits_max_computed", |b| {
         b.iter(|| {
-            let mut bitter = BitGet::new(&DATA[..]);
+            let mut bitter = LittleEndianReader::new(&DATA[..]);
             for _ in 0..ITER {
                 black_box(bitter.read_bits_max_computed(4, 22));
             }
@@ -173,7 +176,7 @@ fn read_bits_max(c: &mut Criterion) {
     })
     .with_function("read_bits_max_computed_unchecked", |b| {
         b.iter(|| {
-            let mut bitter = BitGet::new(&DATA[..]);
+            let mut bitter = LittleEndianReader::new(&DATA[..]);
             for _ in 0..ITER {
                 black_box(bitter.read_bits_max_computed_unchecked(4, 22));
             }
@@ -181,7 +184,7 @@ fn read_bits_max(c: &mut Criterion) {
     })
     .with_function("read_bits_max_unchecked", |b| {
         b.iter(|| {
-            let mut bitter = BitGet::new(&DATA[..]);
+            let mut bitter = LittleEndianReader::new(&DATA[..]);
             for _ in 0..ITER {
                 black_box(bitter.read_bits_max_unchecked(22));
             }
@@ -201,7 +204,7 @@ fn read_bytes(c: &mut Criterion) {
     let bench = Benchmark::new("aligned", |b| {
         b.iter(|| {
             let mut buf = [0u8; 7];
-            let mut bitter = BitGet::new(&DATA[..]);
+            let mut bitter = LittleEndianReader::new(&DATA[..]);
             for _ in 0..ITER {
                 black_box(bitter.read_bytes(&mut buf));
             }
@@ -210,7 +213,7 @@ fn read_bytes(c: &mut Criterion) {
     .with_function("unaligned", |b| {
         b.iter(|| {
             let mut buf = [0u8; 7];
-            let mut bitter = BitGet::new(&DATA[..]);
+            let mut bitter = LittleEndianReader::new(&DATA[..]);
             bitter.read_bit();
             for _ in 0..ITER {
                 black_box(bitter.read_bytes(&mut buf));
