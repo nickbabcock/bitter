@@ -173,6 +173,16 @@ pub trait BitReader {
     /// ```
     fn read_f32(&mut self) -> Option<f32>;
 
+    /// Consume 64 bits and return the deserialized double floating point
+    ///
+    /// ```rust
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let data = 12.5f64.to_be_bytes();
+    /// let mut bits = BigEndianReader::new(&data);
+    /// assert_eq!(bits.read_f64(), Some(12.5f64));
+    /// ```
+    fn read_f64(&mut self) -> Option<f64>;
+
     /// Reads an arbitrary number of bits from 1 to 32 (inclusive)
     /// and returns the unsigned result
     ///
@@ -337,6 +347,16 @@ pub trait BitReader {
     /// assert_eq!(bits.read_f32_unchecked(), 12.5f32);
     /// ```
     fn read_f32_unchecked(&mut self) -> f32;
+
+    /// Consume 64 bits and return the deserialized double floating point
+    ///
+    /// ```rust
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let data = 12.5f64.to_be_bytes();
+    /// let mut bits = BigEndianReader::new(&data);
+    /// assert_eq!(bits.read_f64_unchecked(), 12.5f64);
+    /// ```
+    fn read_f64_unchecked(&mut self) -> f64;
 
     /// Reads an arbitrary number of bits from 1 to 32 (inclusive)
     /// and returns the unsigned result
@@ -698,6 +718,16 @@ macro_rules! generate_bitter_end {
             #[inline]
             fn read_f32_unchecked(&mut self) -> f32 {
                 f32::from_bits(self.read_u32_unchecked())
+            }
+
+            #[inline]
+            fn read_f64(&mut self) -> Option<f64> {
+                self.read_u64().map(f64::from_bits)
+            }
+
+            #[inline]
+            fn read_f64_unchecked(&mut self) -> f64 {
+                f64::from_bits(self.read_u64_unchecked())
             }
 
             #[cfg_attr(feature = "cargo-clippy", allow(clippy::option_option))]
