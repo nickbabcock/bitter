@@ -124,8 +124,11 @@ fn read_u64_le_alternate(data: Vec<u64>) -> bool {
         ledata.extend_from_slice(&x.to_le_bytes());
     }
     let mut lebits = LittleEndianBits::new(ledata.as_slice());
+    for _ in 0..64 {
+        lebits.read_bit();
+    }
 
-    for (i, x) in data.iter().enumerate() {
+    for (i, x) in data.iter().skip(1).enumerate() {
         if i % 3 == 0 {
             if lebits.read_u64().unwrap() != *x {
                 return false;
@@ -147,8 +150,11 @@ fn read_u64_be_alternate(data: Vec<u64>) -> bool {
         bedata.extend_from_slice(&x.to_be_bytes());
     }
     let mut bebits = BigEndianBits::new(bedata.as_slice());
+    for _ in 0..64 {
+        bebits.read_bit();
+    }
 
-    for (i, x) in data.iter().enumerate() {
+    for (i, x) in data.iter().skip(1).enumerate() {
         if i % 3 == 0 {
             if bebits.read_u64().unwrap() != *x {
                 return false;

@@ -892,7 +892,12 @@ impl<'a> LittleEndianBits<'a> {
             result
         } else {
             let bts = core::mem::size_of::<u64>() * 8;
-            let little = self.current_val >> self.pos;
+            let pos_mask = self.pos & 63;
+            let little = self.current_val >> pos_mask;
+            let no_overflow = (self.pos == pos_mask) as i64;
+            let no_overflow = unsafe { std::mem::transmute::<i64, u64>(-no_overflow) };
+            let little = no_overflow & little;
+
             self.data = &self.data[BYTE_WIDTH..];
             self.current_val = self.read();
             let big = self.current_val << (bts - self.pos);
@@ -993,7 +998,12 @@ impl<'a> BigEndianBits<'a> {
             result
         } else {
             let bts = core::mem::size_of::<u64>() * 8;
-            let big = self.current_val << self.pos;
+            let pos_mask = self.pos & 63;
+            let big = self.current_val << pos_mask;
+            let no_overflow = (self.pos == pos_mask) as i64;
+            let no_overflow = unsafe { std::mem::transmute::<i64, u64>(-no_overflow) };
+            let big = no_overflow & big;
+
             self.data = &self.data[BYTE_WIDTH..];
             self.current_val = self.read();
             let little = self.current_val >> (bts - self.pos);
