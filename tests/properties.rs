@@ -67,19 +67,101 @@ fn v1_eq(data: Vec<u8>) -> bool {
         && bits.read_u8() == bitsv1.read_u8()
 }
 
-// #[quickcheck]
-// fn read_byte_eq(data: Vec<u8>) -> bool {
-//     let mut lebits = LittleEndianBits::new(data.as_slice());
-//     let mut bebits = BigEndianBits::new(data.as_slice());
+#[quickcheck]
+fn read_byte_eq(data: Vec<u8>) -> bool {
+    let mut lebits = LittleEndianBits::new(data.as_slice());
+    let mut bebits = BigEndianBits::new(data.as_slice());
 
-//     for i in &data {
-//         if lebits.read_u8() != bebits.read_u8() {
-//             return false;
-//         }
-//     }
+    for _ in &data {
+        if lebits.read_u8() != bebits.read_u8() {
+            return false;
+        }
+    }
 
-//     lebits.is_empty() && bebits.is_empty()
-// }
+    lebits.is_empty() && bebits.is_empty()
+}
+
+#[quickcheck]
+fn read_byte_unchecked_eq(data: Vec<u8>) -> bool {
+    let mut lebits = LittleEndianBits::new(data.as_slice());
+    let mut bebits = BigEndianBits::new(data.as_slice());
+
+    for _ in &data {
+        if lebits.read_u8_unchecked() != bebits.read_u8_unchecked() {
+            return false;
+        }
+    }
+
+    lebits.is_empty() && bebits.is_empty()
+}
+
+#[quickcheck]
+fn read_byte_alternate(data: Vec<u8>) -> bool {
+    let mut lebits = LittleEndianBits::new(data.as_slice());
+    let mut bebits = BigEndianBits::new(data.as_slice());
+
+    for (i, x) in data.iter().enumerate() {
+        if i % 3 == 0 {
+            let val = lebits.read_u8().unwrap();
+            if val != *x || val != bebits.read_u8().unwrap() {
+                return false;
+            }
+        } else {
+            let val = lebits.read_u8_unchecked();
+            if val != *x || val != bebits.read_u8_unchecked() {
+                return false;
+            }
+        }
+    }
+
+    lebits.is_empty() && bebits.is_empty()
+}
+
+#[quickcheck]
+fn read_u64_le_alternate(data: Vec<u64>) -> bool {
+    let mut ledata: Vec<u8> = Vec::new();
+    for x in &data {
+        ledata.extend_from_slice(&x.to_le_bytes());
+    }
+    let mut lebits = LittleEndianBits::new(ledata.as_slice());
+
+    for (i, x) in data.iter().enumerate() {
+        if i % 3 == 0 {
+            if lebits.read_u64().unwrap() != *x {
+                return false;
+            }
+        } else {
+            if lebits.read_u64_unchecked() != *x {
+                return false;
+            }
+        }
+    }
+
+    lebits.is_empty()
+}
+
+#[quickcheck]
+fn read_u64_be_alternate(data: Vec<u64>) -> bool {
+    let mut bedata: Vec<u8> = Vec::new();
+    for x in &data {
+        bedata.extend_from_slice(&x.to_be_bytes());
+    }
+    let mut bebits = BigEndianBits::new(bedata.as_slice());
+
+    for (i, x) in data.iter().enumerate() {
+        if i % 3 == 0 {
+            if bebits.read_u64().unwrap() != *x {
+                return false;
+            }
+        } else {
+            if bebits.read_u64_unchecked() != *x {
+                return false;
+            }
+        }
+    }
+
+    bebits.is_empty()
+}
 
 #[quickcheck]
 fn read_u16_eq(x: u16) -> bool {
@@ -109,16 +191,6 @@ fn read_u64_eq(x: u64) -> bool {
     let mut bebits = BigEndianBits::new(&be_data);
 
     lebits.read_u64() == bebits.read_u64()
-}
-
-#[quickcheck]
-fn read_byte_unchecked_eq(data: Vec<u8>) -> bool {
-    let mut lebits = LittleEndianBits::new(data.as_slice());
-    let mut bebits = BigEndianBits::new(data.as_slice());
-
-    lebits.has_bits_remaining(8) == bebits.has_bits_remaining(8)
-        && (!lebits.has_bits_remaining(8)
-            || lebits.read_u8_unchecked() == bebits.read_u8_unchecked())
 }
 
 #[quickcheck]
@@ -213,4 +285,40 @@ fn read_f32_unchecked_eq(bits: u32) -> bool {
     let mut bebits = BigEndianBits::new(&be_data);
 
     lebits.read_f32_unchecked() == bebits.read_f32_unchecked()
+}
+
+#[quickcheck]
+fn back_to_back_le_u64(x: u64, y: u64) -> bool {
+    let mut data = Vec::new();
+    data.extend_from_slice(&(x.to_le_bytes()));
+    data.extend_from_slice(&(y.to_le_bytes()));
+    let mut bits = LittleEndianBits::new(data.as_slice());
+    bits.read_u64() == Some(x) && bits.read_u64() == Some(y)
+}
+
+#[quickcheck]
+fn back_to_back_le_unchecked_u64(x: u64, y: u64) -> bool {
+    let mut data = Vec::new();
+    data.extend_from_slice(&(x.to_le_bytes()));
+    data.extend_from_slice(&(y.to_le_bytes()));
+    let mut bits = LittleEndianBits::new(data.as_slice());
+    bits.read_u64_unchecked() == x && bits.read_u64_unchecked() == y
+}
+
+#[quickcheck]
+fn back_to_back_be_u64(x: u64, y: u64) -> bool {
+    let mut data = Vec::new();
+    data.extend_from_slice(&(x.to_be_bytes()));
+    data.extend_from_slice(&(y.to_be_bytes()));
+    let mut bits = BigEndianBits::new(data.as_slice());
+    bits.read_u64() == Some(x) && bits.read_u64() == Some(y)
+}
+
+#[quickcheck]
+fn back_to_back_be_unchecked_u64(x: u64, y: u64) -> bool {
+    let mut data = Vec::new();
+    data.extend_from_slice(&(x.to_be_bytes()));
+    data.extend_from_slice(&(y.to_be_bytes()));
+    let mut bits = BigEndianBits::new(data.as_slice());
+    bits.read_u64_unchecked() == x && bits.read_u64_unchecked() == y
 }

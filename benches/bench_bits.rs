@@ -7,7 +7,7 @@ extern crate criterion;
 extern crate nom;
 extern crate bitterv1;
 
-use bitreader::{BitReader as BR};
+use bitreader::BitReader as BR;
 use bitstream_io::{BitReader as bio_br, LE};
 use bitter::{BitReader, LittleEndianBits};
 use bitterv1::BitGet as BitGetV1;

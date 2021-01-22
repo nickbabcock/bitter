@@ -307,7 +307,7 @@ pub trait BitReader {
     /// assert_eq!(bits.read_i32_unchecked(), -22000i32);
     /// ```
     fn read_i32_unchecked(&mut self) -> i32;
-    
+
     /// Consume 64 bits and return the deserialized long
     ///
     /// ```rust
@@ -833,13 +833,11 @@ impl<'a> LittleEndianBits<'a> {
             if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {
                 None
             } else {
-                let little = self.current_val.checked_shr(self.pos as u32).unwrap_or(0);
-                // let pos_mask = self.pos & 63;
-                // let little = self.current_val >> pos_mask;
-                // let overflowed = (self.pos != pos_mask) as i64;
-                // let overflowed = unsafe { std::mem::transmute::<i64, u64>(-overflowed) };
-                // let little_mask = u64::MAX;
-                // let little = (little & !little_mask) | (overflowed & little_mask);
+                let pos_mask = self.pos & 63;
+                let little = self.current_val >> pos_mask;
+                let no_overflow = (self.pos == pos_mask) as i64;
+                let no_overflow = unsafe { std::mem::transmute::<i64, u64>(-no_overflow) };
+                let little = no_overflow & little;
 
                 self.data = new_data;
                 self.current_val = self.read();
@@ -867,7 +865,12 @@ impl<'a> LittleEndianBits<'a> {
             if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
                 None
             } else {
-                let little = self.current_val.wrapping_shr(self.pos as u32);
+                let pos_mask = self.pos & 63;
+                let little = self.current_val >> pos_mask;
+                let no_overflow = (self.pos == pos_mask) as i64;
+                let no_overflow = unsafe { std::mem::transmute::<i64, u64>(-no_overflow) };
+                let little = no_overflow & little;
+
                 self.data = new_data;
                 self.current_val = self.read();
                 let big = self.current_val << (bts - self.pos);
@@ -906,7 +909,12 @@ impl<'a> LittleEndianBits<'a> {
             self.pos = new_pos;
             res as u32
         } else {
-            let little = self.current_val >> self.pos;
+            let pos_mask = self.pos & 63;
+            let little = self.current_val >> pos_mask;
+            let no_overflow = (self.pos == pos_mask) as i64;
+            let no_overflow = unsafe { std::mem::transmute::<i64, u64>(-no_overflow) };
+            let little = no_overflow & little;
+
             self.data = &self.data[BYTE_WIDTH..];
             self.current_val = self.read();
             let left = new_pos - BIT_WIDTH;
@@ -958,7 +966,12 @@ impl<'a> BigEndianBits<'a> {
             if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
                 None
             } else {
-                let big = self.current_val << self.pos;
+                let pos_mask = self.pos & 63;
+                let big = self.current_val << pos_mask;
+                let no_overflow = (self.pos == pos_mask) as i64;
+                let no_overflow = unsafe { std::mem::transmute::<i64, u64>(-no_overflow) };
+                let big = no_overflow & big;
+
                 self.data = new_data;
                 self.current_val = self.read();
                 let little = self.current_val >> (bts - self.pos);
@@ -1006,7 +1019,7 @@ impl<'a> BigEndianBits<'a> {
                 let big = (self.current_val & mask) << left;
                 self.data = new_data;
                 self.current_val = self.read();
-                let little = self.current_val.wrapping_shr((BIT_WIDTH - left) as u32);
+                let little = self.current_val >> (BIT_WIDTH - left);
                 self.pos = left;
                 Some((little + big) as u32)
             }
@@ -1019,7 +1032,7 @@ impl<'a> BigEndianBits<'a> {
     fn read_bits_unchecked(&mut self, bits: i32) -> u32 {
         let bts = bits as usize;
         let new_pos = self.pos + bts;
-        if new_pos < BIT_WIDTH {
+        if new_pos <= BIT_WIDTH {
             let res = (self.current_val >> (BIT_WIDTH - new_pos)) & bit_mask(bts);
             self.pos = new_pos;
             res as u32
@@ -1029,7 +1042,7 @@ impl<'a> BigEndianBits<'a> {
             let big = (self.current_val & mask) << left;
             self.data = &self.data[BYTE_WIDTH..];
             self.current_val = self.read();
-            let little = self.current_val.wrapping_shr((BIT_WIDTH - left) as u32);
+            let little = self.current_val >> (BIT_WIDTH - left);
             self.pos = left;
             (little + big) as u32
         }
@@ -1640,6 +1653,40 @@ mod tests {
     }
 
     #[test]
+    fn back_to_back_le_u64() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(1u64.to_le_bytes()));
+        data.extend_from_slice(&(0u64.to_le_bytes()));
+        let mut bits = LittleEndianBits::new(data.as_slice());
+        assert_eq!(bits.read_u64(), Some(1));
+        assert_eq!(bits.read_u64(), Some(0));
+    }
+
+    #[test]
+    fn pushed_le_u64() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(0u64.to_le_bytes()));
+        data.extend_from_slice(&(1u64.to_le_bytes()));
+        let mut bits = LittleEndianBits::new(data.as_slice());
+        for _ in 0..8 {
+            assert_eq!(bits.read_u8(), Some(0));
+        }
+        assert_eq!(bits.read_u64(), Some(1));
+    }
+
+    #[test]
+    fn pushed_le_unchecked_u64() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(0u64.to_le_bytes()));
+        data.extend_from_slice(&(1u64.to_le_bytes()));
+        let mut bits = LittleEndianBits::new(data.as_slice());
+        for _ in 0..8 {
+            assert_eq!(bits.read_u8_unchecked(), 0);
+        }
+        assert_eq!(bits.read_u64_unchecked(), 1);
+    }
+
+    #[test]
     fn regression1() {
         let data = vec![0b0000_0010, 0b0011_1111, 0b1011_1100];
         let mut bits = LittleEndianBits::new(data.as_slice());
@@ -1791,5 +1838,57 @@ mod be_tests {
     fn test_u32_bit_read() {
         let mut bitter = BigEndianBits::new(&[0xff, 0x00, 0xab, 0xcd]);
         assert_eq!(bitter.read_u32_bits(32), Some(0xff00abcd));
+    }
+
+    #[test]
+    fn back_to_back_be_u64() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(0u64.to_be_bytes()));
+        data.extend_from_slice(&(1u64.to_be_bytes()));
+        let mut bits = BigEndianBits::new(data.as_slice());
+        assert_eq!(bits.read_u64(), Some(0));
+        assert_eq!(bits.read_u64(), Some(1));
+    }
+
+    #[test]
+    fn back_to_back_be_u64_2() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(1u64.to_be_bytes()));
+        data.extend_from_slice(&(0u64.to_be_bytes()));
+        let mut bits = BigEndianBits::new(data.as_slice());
+        assert_eq!(bits.read_u64(), Some(1));
+        assert_eq!(bits.read_u64(), Some(0));
+    }
+
+    #[test]
+    fn pushed_be_u64() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(0u64.to_be_bytes()));
+        data.extend_from_slice(&(1u64.to_be_bytes()));
+        let mut bits = BigEndianBits::new(data.as_slice());
+        for _ in 0..8 {
+            assert_eq!(bits.read_u8(), Some(0));
+        }
+        assert_eq!(bits.read_u64(), Some(1));
+    }
+
+    #[test]
+    fn back_to_back_be_unchecked_u64() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(0u64.to_be_bytes()));
+        data.extend_from_slice(&(1u64.to_be_bytes()));
+        let mut bits = BigEndianBits::new(data.as_slice());
+        assert_eq!(bits.read_u64_unchecked(), 0);
+        assert_eq!(bits.read_u64_unchecked(), 1);
+    }
+
+    #[test]
+    fn back_to_back_be_unchecked_u64_2() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(1u64.to_be_bytes()));
+        data.extend_from_slice(&(0u64.to_be_bytes()));
+        let mut bits = BigEndianBits::new(data.as_slice());
+        assert_eq!(bits.read_u64_unchecked(), 1);
+        assert_eq!(bits.read_u64_unchecked(), 0);
     }
 }
