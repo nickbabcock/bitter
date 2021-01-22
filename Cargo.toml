@@ -9,6 +9,7 @@ keywords = ["bitstream", "little-endian", "binary"]
 categories = ["parsing", "no-std"]
 license = "MIT"
 include = ["src/**/*.rs", "benches"]
+edition = "2018"
 
 [features]
 default = ["std"]

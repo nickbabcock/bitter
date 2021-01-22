@@ -1,5 +1,5 @@
-extern crate bitter;
-extern crate bitterv1;
+use bitter;
+use bitterv1;
 
 use bitter::{BigEndianReader, BitReader, LittleEndianReader};
 

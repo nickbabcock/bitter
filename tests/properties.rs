@@ -1,8 +1,8 @@
-extern crate quickcheck;
+use quickcheck;
 #[macro_use]
 extern crate quickcheck_macros;
-extern crate bitter;
-extern crate bitterv1;
+
+use bitterv1;
 
 use bitter::{BigEndianReader, BitReader, LittleEndianReader};
 

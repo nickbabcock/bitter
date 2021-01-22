@@ -1,11 +1,8 @@
-extern crate bitreader;
-extern crate bitstream_io;
-extern crate bitter;
+use bitter;
 #[macro_use]
 extern crate criterion;
 #[macro_use]
 extern crate nom;
-extern crate bitterv1;
 
 use bitreader::BitReader as BR;
 use bitstream_io::{BitReader as bio_br, LE};
@@ -100,25 +97,31 @@ macro_rules! ben {
 fn eight_bits(c: &mut Criterion) {
     let bench = Benchmark::new(
         "bitter_arbitrary_unchecked",
-        ben!(LittleEndianReader::new(&DATA), |x: &mut LittleEndianReader| x
-            .read_u32_bits_unchecked(8)),
+        ben!(
+            LittleEndianReader::new(&DATA),
+            |x: &mut LittleEndianReader<'_>| x.read_u32_bits_unchecked(8)
+        ),
     )
     .with_function(
         "bitter_arbitrary_checked",
-        ben!(LittleEndianReader::new(&DATA), |x: &mut LittleEndianReader| x
-            .read_u32_bits(8)
-            .unwrap()),
+        ben!(
+            LittleEndianReader::new(&DATA),
+            |x: &mut LittleEndianReader<'_>| x.read_u32_bits(8).unwrap()
+        ),
     )
     .with_function(
         "bitter_byte_unchecked",
-        ben!(LittleEndianReader::new(&DATA), |x: &mut LittleEndianReader| x
-            .read_u8_unchecked()),
+        ben!(
+            LittleEndianReader::new(&DATA),
+            |x: &mut LittleEndianReader<'_>| x.read_u8_unchecked()
+        ),
     )
     .with_function(
         "bitter_byte_checked",
-        ben!(LittleEndianReader::new(&DATA), |x: &mut LittleEndianReader| x
-            .read_u8()
-            .map(u32::from)),
+        ben!(
+            LittleEndianReader::new(&DATA),
+            |x: &mut LittleEndianReader<'_>| x.read_u8().map(u32::from)
+        ),
     )
     .throughput(Throughput::Bytes(ITER));
 
@@ -128,13 +131,17 @@ fn eight_bits(c: &mut Criterion) {
 fn sixtyfour_bits(c: &mut Criterion) {
     let bench = Benchmark::new(
         "bitter_byte_unchecked",
-        ben!(LittleEndianReader::new(&DATA), |x: &mut LittleEndianReader| x
-            .read_u64_unchecked()),
+        ben!(
+            LittleEndianReader::new(&DATA),
+            |x: &mut LittleEndianReader<'_>| x.read_u64_unchecked()
+        ),
     )
     .with_function(
         "bitter_byte_checked",
-        ben!(LittleEndianReader::new(&DATA), |x: &mut LittleEndianReader| x
-            .read_u64()),
+        ben!(
+            LittleEndianReader::new(&DATA),
+            |x: &mut LittleEndianReader<'_>| x.read_u64()
+        ),
     )
     .throughput(Throughput::Bytes(
         ::std::mem::size_of::<u64>() as u64 * ITER,

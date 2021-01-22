@@ -504,14 +504,22 @@ const fn bit_mask(bits: usize) -> u64 {
 /// the number of bits exceeds 63 then 0 is returned
 #[inline]
 fn shl_mask(val: u64, shift: usize) -> u64 {
-    if shift == 64 { 0 } else { val << shift }
+    if shift == 64 {
+        0
+    } else {
+        val << shift
+    }
 }
 
 /// Returns value shifted right by the given bits. If the
 /// the number of bits exceeds 63 then 0 is returned
 #[inline]
 fn shr_mask(val: u64, shift: usize) -> u64 {
-    if shift == 64 { 0 } else { val >> shift }
+    if shift == 64 {
+        0
+    } else {
+        val >> shift
+    }
 }
 
 const BYTE_WIDTH: usize = core::mem::size_of::<u64>();
