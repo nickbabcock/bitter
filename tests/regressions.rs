@@ -1,12 +1,12 @@
 extern crate bitter;
 extern crate bitterv1;
 
-use bitter::{BigEndianBits, BitReader, LittleEndianBits};
+use bitter::{BigEndianReader, BitReader, LittleEndianReader};
 
 #[test]
 fn regression1() {
     let data = vec![0b0000_0010, 0b0011_1111, 0b1011_1100];
-    let mut bits = bitter::LittleEndianBits::new(data.as_slice());
+    let mut bits = bitter::LittleEndianReader::new(data.as_slice());
     let mut bitsv1 = bitterv1::BitGet::new(data.as_slice());
 
     assert_eq!(bits.read_u32_bits(3), bitsv1.read_u32_bits(3));
@@ -21,8 +21,8 @@ fn test_f32_endian() {
     let le_data = bits.to_le_bytes();
     let be_data = bits.to_be_bytes();
 
-    let mut lebits = LittleEndianBits::new(&le_data);
-    let mut bebits = BigEndianBits::new(&be_data);
+    let mut lebits = LittleEndianReader::new(&le_data);
+    let mut bebits = BigEndianReader::new(&be_data);
 
     assert_eq!(lebits.read_f32(), Some(12.5f32));
     assert_eq!(bebits.read_f32(), Some(12.5f32));
@@ -31,8 +31,8 @@ fn test_f32_endian() {
 #[test]
 fn read_byte_eq() {
     let data = vec![0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1];
-    let mut lebits = LittleEndianBits::new(data.as_slice());
-    let mut bebits = BigEndianBits::new(data.as_slice());
+    let mut lebits = LittleEndianReader::new(data.as_slice());
+    let mut bebits = BigEndianReader::new(data.as_slice());
 
     assert_eq!(lebits.read_u8(), bebits.read_u8());
     assert_eq!(lebits.read_u8(), bebits.read_u8());
@@ -52,8 +52,8 @@ fn read_byte_eq() {
 #[test]
 fn read_byte_eq2() {
     let data = vec![1, 0, 0, 0, 0, 0, 0, 0, 0];
-    let mut lebits = LittleEndianBits::new(data.as_slice());
-    let mut bebits = BigEndianBits::new(data.as_slice());
+    let mut lebits = LittleEndianReader::new(data.as_slice());
+    let mut bebits = BigEndianReader::new(data.as_slice());
 
     assert_eq!(lebits.read_u8(), bebits.read_u8());
     assert_eq!(lebits.read_u8(), bebits.read_u8());
@@ -70,7 +70,7 @@ fn read_byte_eq2() {
 #[test]
 fn read_byte_le_unchecked() {
     let data = vec![1, 0, 0, 0, 0, 0, 0, 0, 0];
-    let mut lebits = LittleEndianBits::new(data.as_slice());
+    let mut lebits = LittleEndianReader::new(data.as_slice());
 
     assert_eq!(lebits.read_u8_unchecked(), 1);
     assert_eq!(lebits.read_u8_unchecked(), 0);
@@ -88,7 +88,7 @@ fn read_byte_le_unchecked() {
 #[test]
 fn read_byte_be_unchecked() {
     let data = vec![1, 0, 0, 0, 0, 0, 0, 0, 0];
-    let mut bits = BigEndianBits::new(data.as_slice());
+    let mut bits = BigEndianReader::new(data.as_slice());
 
     assert_eq!(bits.read_u8_unchecked(), 1);
     assert_eq!(bits.read_u8_unchecked(), 0);
@@ -106,7 +106,7 @@ fn read_byte_be_unchecked() {
 #[test]
 fn read_byte_be() {
     let data = vec![1, 0, 0, 0, 0, 0, 0, 0, 0];
-    let mut bits = BigEndianBits::new(data.as_slice());
+    let mut bits = BigEndianReader::new(data.as_slice());
 
     assert_eq!(bits.read_u8(), Some(1));
     assert_eq!(bits.read_u8(), Some(0));
@@ -124,8 +124,8 @@ fn read_byte_be() {
 #[test]
 fn read_byte_eq_unchecked() {
     let data = vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
-    let mut lebits = LittleEndianBits::new(data.as_slice());
-    let mut bebits = BigEndianBits::new(data.as_slice());
+    let mut lebits = LittleEndianReader::new(data.as_slice());
+    let mut bebits = BigEndianReader::new(data.as_slice());
 
     assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
     assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
@@ -151,7 +151,7 @@ fn read_byte_eq_unchecked() {
 #[test]
 fn remaining_bits_le() {
     let data: &[u8] = &[0, 0, 0, 0, 0, 0, 0, 0, 0];
-    let mut lebits = LittleEndianBits::new(data);
+    let mut lebits = LittleEndianReader::new(data);
     assert!(lebits.has_bits_remaining(65));
     for _ in 0..65 {
         assert!(!lebits.read_bit().unwrap());
@@ -161,6 +161,6 @@ fn remaining_bits_le() {
 #[test]
 fn has_bits_remaining_bit_reads_test_case() {
     let data = &[0, 0, 0, 0, 0, 0, 0, 0];
-    let mut bits = LittleEndianBits::new(data);
+    let mut bits = LittleEndianReader::new(data);
     assert!((1..128).all(|_x| bits.has_bits_remaining(1) == bits.read_bit().is_some()))
 }

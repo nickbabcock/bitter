@@ -19,8 +19,8 @@ Bitter takes a slice of byte data and reads bits in a desired endian format plat
 ## Example
 
 ```rust
-use bitter::{BitReader, LittleEndianBits};
-let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
+use bitter::{BitReader, LittleEndianReader};
+let mut bitter = LittleEndianReader::new(&[0xff, 0x04]);
 assert_eq!(bitter.read_bit(), Some(true));
 assert_eq!(bitter.read_u8(), Some(0x7f));
 assert_eq!(bitter.read_u32_bits(7), Some(0x02));
@@ -37,8 +37,8 @@ Tips:
 Below is a demonstration of the unchecked APIs with a guard to ensure safety:
 
 ```rust
-use bitter::{BitReader, LittleEndianBits};
-let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
+use bitter::{BitReader, LittleEndianReader};
+let mut bitter = LittleEndianReader::new(&[0xff, 0x04]);
 if bitter.has_bits_remaining(16) {
     assert_eq!(bitter.read_bit_unchecked(), true);
     assert_eq!(bitter.read_u8_unchecked(), 0x7f);
@@ -49,8 +49,8 @@ if bitter.has_bits_remaining(16) {
 Another guard usage:
 
 ```rust
-use bitter::{BitReader, LittleEndianBits};
-let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
+use bitter::{BitReader, LittleEndianReader};
+let mut bitter = LittleEndianReader::new(&[0xff, 0x04]);
 if bitter.has_bits_remaining(16) {
     for _ in 0..8 {
         assert_eq!(bitter.read_bit_unchecked(), true);
@@ -79,8 +79,8 @@ pub trait BitReader {
     /// Consume a bit and return if the bit was enabled
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
-    /// let mut bits = BigEndianBits::new(&[0b1001_0011]);
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let mut bits = BigEndianReader::new(&[0b1001_0011]);
     /// assert_eq!(bits.read_bit(), Some(true));
     /// assert_eq!(bits.read_bit(), Some(false));
     /// ```
@@ -89,8 +89,8 @@ pub trait BitReader {
     /// Consume 8 bits and return the deserialized byte
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
-    /// let mut bits = BigEndianBits::new(&[0b1001_0011]);
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let mut bits = BigEndianReader::new(&[0b1001_0011]);
     /// assert_eq!(bits.read_u8(), Some(0b1001_0011));
     /// ```
     fn read_u8(&mut self) -> Option<u8>;
@@ -98,8 +98,8 @@ pub trait BitReader {
     /// Consume 8 bits and return the deserialized byte
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
-    /// let mut bits = BigEndianBits::new(&[0b1001_0011]);
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let mut bits = BigEndianReader::new(&[0b1001_0011]);
     /// assert_eq!(bits.read_i8(), Some(-109));
     /// ```
     fn read_i8(&mut self) -> Option<i8>;
@@ -107,8 +107,8 @@ pub trait BitReader {
     /// Consume 16 bits and return the deserialized short
     ///
     /// ```rust
-    /// use bitter::{BitReader, LittleEndianBits};
-    /// let mut bits = LittleEndianBits::new(&[0b1001_0011, 0b1111_1111]);
+    /// use bitter::{BitReader, LittleEndianReader};
+    /// let mut bits = LittleEndianReader::new(&[0b1001_0011, 0b1111_1111]);
     /// assert_eq!(bits.read_u16(), Some(0xff93));
     /// ```
     fn read_u16(&mut self) -> Option<u16>;
@@ -116,9 +116,9 @@ pub trait BitReader {
     /// Consume 16 bits and return the deserialized short
     ///
     /// ```rust
-    /// use bitter::{BitReader, LittleEndianBits};
+    /// use bitter::{BitReader, LittleEndianReader};
     /// let data = (-500i16).to_le_bytes();
-    /// let mut bits = LittleEndianBits::new(&data);
+    /// let mut bits = LittleEndianReader::new(&data);
     /// assert_eq!(bits.read_i16(), Some(-500));
     /// ```
     fn read_i16(&mut self) -> Option<i16>;
@@ -126,9 +126,9 @@ pub trait BitReader {
     /// Consume 32 bits and return the deserialized int
     ///
     /// ```rust
-    /// use bitter::{BitReader, LittleEndianBits};
+    /// use bitter::{BitReader, LittleEndianReader};
     /// let data = (22000u32).to_le_bytes();
-    /// let mut bits = LittleEndianBits::new(&data);
+    /// let mut bits = LittleEndianReader::new(&data);
     /// assert_eq!(bits.read_u32(), Some(22000u32));
     /// ```
     fn read_u32(&mut self) -> Option<u32>;
@@ -136,9 +136,9 @@ pub trait BitReader {
     /// Consume 32 bits and return the deserialized int
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianReader};
     /// let data = (-22000i32).to_be_bytes();
-    /// let mut bits = BigEndianBits::new(&data);
+    /// let mut bits = BigEndianReader::new(&data);
     /// assert_eq!(bits.read_i32(), Some(-22000i32));
     /// ```
     fn read_i32(&mut self) -> Option<i32>;
@@ -146,9 +146,9 @@ pub trait BitReader {
     /// Consume 64 bits and return the deserialized long
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianReader};
     /// let data = (22000u64).to_be_bytes();
-    /// let mut bits = BigEndianBits::new(&data);
+    /// let mut bits = BigEndianReader::new(&data);
     /// assert_eq!(bits.read_u64(), Some(22000u64));
     /// ```
     fn read_u64(&mut self) -> Option<u64>;
@@ -156,9 +156,9 @@ pub trait BitReader {
     /// Consume 64 bits and return the deserialized long
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianReader};
     /// let data = (-22000i64).to_be_bytes();
-    /// let mut bits = BigEndianBits::new(&data);
+    /// let mut bits = BigEndianReader::new(&data);
     /// assert_eq!(bits.read_i64(), Some(-22000i64));
     /// ```
     fn read_i64(&mut self) -> Option<i64>;
@@ -166,9 +166,9 @@ pub trait BitReader {
     /// Consume 32 bits and return the deserialized floating point
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianReader};
     /// let data = 12.5f32.to_be_bytes();
-    /// let mut bits = BigEndianBits::new(&data);
+    /// let mut bits = BigEndianReader::new(&data);
     /// assert_eq!(bits.read_f32(), Some(12.5f32));
     /// ```
     fn read_f32(&mut self) -> Option<f32>;
@@ -177,8 +177,8 @@ pub trait BitReader {
     /// and returns the unsigned result
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
-    /// let mut bitter = BigEndianBits::new(&[0xff, 0x00, 0xab, 0xcd]);
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let mut bitter = BigEndianReader::new(&[0xff, 0x00, 0xab, 0xcd]);
     /// assert_eq!(bitter.read_u32_bits(32), Some(0xff00abcd));
     /// ```
     fn read_u32_bits(&mut self, bits: i32) -> Option<u32>;
@@ -187,8 +187,8 @@ pub trait BitReader {
     /// and returns the signed result.
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
-    /// let mut bitter = BigEndianBits::new(&[0xff, 0x00, 0xab, 0xcd]);
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let mut bitter = BigEndianReader::new(&[0xff, 0x00, 0xab, 0xcd]);
     /// let result = i32::from_be_bytes([0xff, 0x00, 0xab, 0xcd]);
     /// assert_eq!(bitter.read_i32_bits(32), Some(result));
     /// ```
@@ -202,8 +202,8 @@ pub trait BitReader {
     /// - Some(x): Bit was on and data was decoded
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitReader};
-    /// let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
+    /// use bitter::{LittleEndianReader, BitReader};
+    /// let mut bitter = LittleEndianReader::new(&[0xff, 0x04]);
     /// assert_eq!(bitter.if_get(BitReader::read_u8), Some(Some(0x7f)));
     /// assert_eq!(bitter.if_get(BitReader::read_u8), Some(None));
     /// assert_eq!(bitter.if_get(BitReader::read_u8), None);
@@ -221,8 +221,8 @@ pub trait BitReader {
     /// necessary number of bits are not available, `None` is returned.
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitReader};
-    /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
+    /// use bitter::{LittleEndianReader, BitReader};
+    /// let mut bitter = LittleEndianReader::new(&[0b1111_1000]);
     /// assert_eq!(bitter.read_bits_max(20), Some(8));
     /// assert_eq!(bitter.read_bits_max(20), Some(15));
     /// ```
@@ -235,8 +235,8 @@ pub trait BitReader {
     /// computed max can lead to undefined behavior
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitReader};
-    /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
+    /// use bitter::{LittleEndianReader, BitReader};
+    /// let mut bitter = LittleEndianReader::new(&[0b1111_1000]);
     /// assert_eq!(bitter.read_bits_max_computed(4, 20), Some(8));
     /// assert_eq!(bitter.read_bits_max_computed(4, 20), Some(15));
     /// ```
@@ -245,8 +245,8 @@ pub trait BitReader {
     /// *Assumes* there is at least one bit left in the stream.
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitReader};
-    /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+    /// use bitter::{LittleEndianReader, BitReader};
+    /// let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
     /// assert_eq!(bitter.read_bit_unchecked(), false);
     /// ```
     fn read_bit_unchecked(&mut self) -> bool;
@@ -254,8 +254,8 @@ pub trait BitReader {
     /// *Assumes* there is at least 8 bits left in the stream.
     ///
     /// ```rust
-    /// use bitter::{BigEndianBits, BitReader};
-    /// let mut bitter = BigEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+    /// use bitter::{BigEndianReader, BitReader};
+    /// let mut bitter = BigEndianReader::new(&[0b1010_1010, 0b0101_0101]);
     /// assert_eq!(bitter.read_u8_unchecked(), 0b1010_1010);
     /// ```
     fn read_u8_unchecked(&mut self) -> u8;
@@ -263,8 +263,8 @@ pub trait BitReader {
     /// *Assumes* there is at least 8 bits left in the stream.
     ///
     /// ```rust
-    /// use bitter::{BigEndianBits, BitReader};
-    /// let mut bitter = BigEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+    /// use bitter::{BigEndianReader, BitReader};
+    /// let mut bitter = BigEndianReader::new(&[0b1010_1010, 0b0101_0101]);
     /// assert_eq!(bitter.read_i8_unchecked(), i8::from_be_bytes([0b1010_1010]));
     /// ```
     fn read_i8_unchecked(&mut self) -> i8;
@@ -272,8 +272,8 @@ pub trait BitReader {
     /// Consume 16 bits and return the deserialized short
     ///
     /// ```rust
-    /// use bitter::{BitReader, LittleEndianBits};
-    /// let mut bits = LittleEndianBits::new(&[0b1001_0011, 0b1111_1111]);
+    /// use bitter::{BitReader, LittleEndianReader};
+    /// let mut bits = LittleEndianReader::new(&[0b1001_0011, 0b1111_1111]);
     /// assert_eq!(bits.read_u16_unchecked(), 0xff93);
     /// ```
     fn read_u16_unchecked(&mut self) -> u16;
@@ -281,9 +281,9 @@ pub trait BitReader {
     /// Consume 16 bits and return the deserialized short
     ///
     /// ```rust
-    /// use bitter::{BitReader, LittleEndianBits};
+    /// use bitter::{BitReader, LittleEndianReader};
     /// let data = (-500i16).to_le_bytes();
-    /// let mut bits = LittleEndianBits::new(&data);
+    /// let mut bits = LittleEndianReader::new(&data);
     /// assert_eq!(bits.read_i16_unchecked(), -500);
     /// ```
     fn read_i16_unchecked(&mut self) -> i16;
@@ -291,9 +291,9 @@ pub trait BitReader {
     /// Consume 32 bits and return the deserialized int
     ///
     /// ```rust
-    /// use bitter::{BitReader, LittleEndianBits};
+    /// use bitter::{BitReader, LittleEndianReader};
     /// let data = (22000u32).to_le_bytes();
-    /// let mut bits = LittleEndianBits::new(&data);
+    /// let mut bits = LittleEndianReader::new(&data);
     /// assert_eq!(bits.read_u32_unchecked(), 22000u32);
     /// ```
     fn read_u32_unchecked(&mut self) -> u32;
@@ -301,9 +301,9 @@ pub trait BitReader {
     /// Consume 32 bits and return the deserialized int
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianReader};
     /// let data = (-22000i32).to_be_bytes();
-    /// let mut bits = BigEndianBits::new(&data);
+    /// let mut bits = BigEndianReader::new(&data);
     /// assert_eq!(bits.read_i32_unchecked(), -22000i32);
     /// ```
     fn read_i32_unchecked(&mut self) -> i32;
@@ -311,9 +311,9 @@ pub trait BitReader {
     /// Consume 64 bits and return the deserialized long
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianReader};
     /// let data = (22000u64).to_be_bytes();
-    /// let mut bits = BigEndianBits::new(&data);
+    /// let mut bits = BigEndianReader::new(&data);
     /// assert_eq!(bits.read_u64_unchecked(), 22000u64);
     /// ```
     fn read_u64_unchecked(&mut self) -> u64;
@@ -321,9 +321,9 @@ pub trait BitReader {
     /// Consume 64 bits and return the deserialized long
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianReader};
     /// let data = (-22000i64).to_be_bytes();
-    /// let mut bits = BigEndianBits::new(&data);
+    /// let mut bits = BigEndianReader::new(&data);
     /// assert_eq!(bits.read_i64_unchecked(), -22000i64);
     /// ```
     fn read_i64_unchecked(&mut self) -> i64;
@@ -331,9 +331,9 @@ pub trait BitReader {
     /// Consume 32 bits and return the deserialized floating point
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
+    /// use bitter::{BitReader, BigEndianReader};
     /// let data = 12.5f32.to_be_bytes();
-    /// let mut bits = BigEndianBits::new(&data);
+    /// let mut bits = BigEndianReader::new(&data);
     /// assert_eq!(bits.read_f32_unchecked(), 12.5f32);
     /// ```
     fn read_f32_unchecked(&mut self) -> f32;
@@ -342,8 +342,8 @@ pub trait BitReader {
     /// and returns the unsigned result
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
-    /// let mut bitter = BigEndianBits::new(&[0xff, 0x00, 0xab, 0xcd]);
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let mut bitter = BigEndianReader::new(&[0xff, 0x00, 0xab, 0xcd]);
     /// assert_eq!(bitter.read_u32_bits_unchecked(32), 0xff00abcd);
     /// ```
     fn read_u32_bits_unchecked(&mut self, bits: i32) -> u32;
@@ -352,8 +352,8 @@ pub trait BitReader {
     /// and returns the signed result.
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
-    /// let mut bitter = BigEndianBits::new(&[0xff, 0x00, 0xab, 0xcd]);
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let mut bitter = BigEndianReader::new(&[0xff, 0x00, 0xab, 0xcd]);
     /// let result = i32::from_be_bytes([0xff, 0x00, 0xab, 0xcd]);
     /// assert_eq!(bitter.read_i32_bits_unchecked(32), result);
     /// ```
@@ -366,10 +366,10 @@ pub trait BitReader {
     /// - Some(x): Bit was on and data was decoded
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitReader};
-    /// let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
-    /// assert_eq!(bitter.if_get_unchecked(LittleEndianBits::read_u8_unchecked), Some(0x7f));
-    /// assert_eq!(bitter.if_get_unchecked(LittleEndianBits::read_u8_unchecked), None);
+    /// use bitter::{LittleEndianReader, BitReader};
+    /// let mut bitter = LittleEndianReader::new(&[0xff, 0x04]);
+    /// assert_eq!(bitter.if_get_unchecked(LittleEndianReader::read_u8_unchecked), Some(0x7f));
+    /// assert_eq!(bitter.if_get_unchecked(LittleEndianReader::read_u8_unchecked), None);
     /// ```
     fn if_get_unchecked<T, F>(&mut self, f: F) -> Option<T>
     where
@@ -384,8 +384,8 @@ pub trait BitReader {
     /// necessary number of bits are not available, `None` is returned.
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitReader};
-    /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
+    /// use bitter::{LittleEndianReader, BitReader};
+    /// let mut bitter = LittleEndianReader::new(&[0b1111_1000]);
     /// assert_eq!(bitter.read_bits_max_unchecked(20), 8);
     /// assert_eq!(bitter.read_bits_max_unchecked(20), 15);
     /// ```
@@ -398,8 +398,8 @@ pub trait BitReader {
     /// computed max can lead to undefined behavior
     ///
     /// ```rust
-    /// use bitter::{LittleEndianBits, BitReader};
-    /// let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
+    /// use bitter::{LittleEndianReader, BitReader};
+    /// let mut bitter = LittleEndianReader::new(&[0b1111_1000]);
     /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 8);
     /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 15);
     /// ```
@@ -411,8 +411,8 @@ pub trait BitReader {
     /// than sign to avoid undefined behavior with unchecked reads
     ///
     /// ```rust
-    /// # use bitter::{LittleEndianBits, BitReader};
-    /// let mut bitter = LittleEndianBits::new(&[0xff]);
+    /// # use bitter::{LittleEndianReader, BitReader};
+    /// let mut bitter = LittleEndianReader::new(&[0xff]);
     /// assert_eq!(bitter.approx_bytes_remaining(), 1);
     /// assert!(bitter.read_bit().is_some());
     /// assert_eq!(bitter.approx_bytes_remaining(), 1);
@@ -427,8 +427,8 @@ pub trait BitReader {
     /// ergonomic alternative.
     ///
     /// ```rust
-    /// # use bitter::{LittleEndianBits, BitReader};
-    /// let mut bitter = LittleEndianBits::new(&[0xff]);
+    /// # use bitter::{LittleEndianReader, BitReader};
+    /// let mut bitter = LittleEndianReader::new(&[0xff]);
     /// assert_eq!(bitter.bits_remaining(), Some(8));
     /// assert!(bitter.read_bit().is_some());
     /// assert_eq!(bitter.bits_remaining(), Some(7));
@@ -441,8 +441,8 @@ pub trait BitReader {
     /// and ergonomic way than `bits_remaining`.
     ///
     /// ```rust
-    /// # use bitter::{LittleEndianBits, BitReader};
-    /// let mut bitter = LittleEndianBits::new(&[0xff]);
+    /// # use bitter::{LittleEndianReader, BitReader};
+    /// let mut bitter = LittleEndianReader::new(&[0xff]);
     /// assert!(bitter.has_bits_remaining(7));
     /// assert!(bitter.has_bits_remaining(8));
     /// assert!(!bitter.has_bits_remaining(9));
@@ -461,8 +461,8 @@ pub trait BitReader {
     /// the read was successful and the buffer has been filled.
     ///
     /// ```rust
-    /// # use bitter::{LittleEndianBits, BitReader};
-    /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+    /// # use bitter::{LittleEndianReader, BitReader};
+    /// let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
     /// let mut buf = [0; 1];
     /// assert_eq!(bitter.read_bit_unchecked(), false);
     /// assert!(bitter.read_bytes(&mut buf));
@@ -474,8 +474,8 @@ pub trait BitReader {
     /// Returns if the bitstream has no bits left
     ///
     /// ```rust
-    /// # use bitter::{LittleEndianBits, BitReader};
-    /// let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+    /// # use bitter::{LittleEndianReader, BitReader};
+    /// let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
     /// assert_eq!(bitter.is_empty(), false);
     /// assert_eq!(bitter.read_u16_unchecked(), 0b0101_0101_1010_1010);
     /// assert_eq!(bitter.is_empty(), true);
@@ -782,32 +782,32 @@ generate_bitter_end!(
     /// Reads bits in the little-endian format
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
-    /// let mut lebits = BigEndianBits::new(&[0b1000_0000]);
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let mut lebits = BigEndianReader::new(&[0b1000_0000]);
     /// assert_eq!(lebits.read_bit(), Some(true));
     /// ```
-    LittleEndianBits
+    LittleEndianReader
 );
 generate_bitter_end!(
     /// Reads bits in the big-endian format
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianBits};
-    /// let mut bebits = BigEndianBits::new(&[0b1000_0000]);
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let mut bebits = BigEndianReader::new(&[0b1000_0000]);
     /// assert_eq!(bebits.read_bit(), Some(true));
     /// ```
-    BigEndianBits
+    BigEndianReader
 );
 
 /// Read bits in system native-endian format
 #[cfg(target_endian = "little")]
-pub type NativeEndianBits<'a> = LittleEndianBits<'a>;
+pub type NativeEndianReader<'a> = LittleEndianReader<'a>;
 
 /// Read bits in system native-endian format
 #[cfg(target_endian = "big")]
-pub type NativeEndianBits<'a> = BigEndianBits<'a>;
+pub type NativeEndianReader<'a> = BigEndianReader<'a>;
 
-impl<'a> LittleEndianBits<'a> {
+impl<'a> LittleEndianReader<'a> {
     /// Assuming that `self.data` is pointing to data not yet seen. slurp up 8 bytes or the
     /// rest of the data (whatever is smaller)
     ///
@@ -917,7 +917,7 @@ impl<'a> LittleEndianBits<'a> {
     }
 }
 
-impl<'a> BigEndianBits<'a> {
+impl<'a> BigEndianReader<'a> {
     /// Assuming that `self.data` is pointing to data not yet seen. slurp up 8 bytes or the
     /// rest of the data (whatever is smaller)
     ///
@@ -1031,11 +1031,11 @@ impl<'a> BigEndianBits<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{bit_width, BitReader, LittleEndianBits};
+    use super::{bit_width, BitReader, LittleEndianReader};
 
     #[test]
     fn test_bit_reads() {
-        let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+        let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
         assert_eq!(bitter.bits_remaining(), Some(16));
         assert_eq!(bitter.read_bit().unwrap(), false);
         assert_eq!(bitter.bits_remaining(), Some(15));
@@ -1061,7 +1061,7 @@ mod tests {
 
     #[test]
     fn test_bit_unchecked_reads() {
-        let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+        let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
         assert_eq!(bitter.read_bit_unchecked(), false);
         assert_eq!(bitter.read_bit_unchecked(), true);
         assert_eq!(bitter.read_bit_unchecked(), false);
@@ -1085,7 +1085,7 @@ mod tests {
 
     #[test]
     fn test_bit_unchecked_bits_reads() {
-        let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+        let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
         assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
         assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
         assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
@@ -1109,7 +1109,7 @@ mod tests {
 
     #[test]
     fn test_has_remaining_bits() {
-        let mut bitter = LittleEndianBits::new(&[0xff, 0xff]);
+        let mut bitter = LittleEndianReader::new(&[0xff, 0xff]);
         assert!(bitter.has_bits_remaining(7));
         assert!(bitter.has_bits_remaining(8));
         assert!(bitter.has_bits_remaining(9));
@@ -1126,7 +1126,7 @@ mod tests {
 
     #[test]
     fn test_has_remaining_bits2() {
-        let mut bitter = LittleEndianBits::new(&[0xff, 0xff, 0xff, 0xff]);
+        let mut bitter = LittleEndianReader::new(&[0xff, 0xff, 0xff, 0xff]);
         assert!(bitter.read_u32_bits(31).is_some());
         assert!(!bitter.has_bits_remaining(2));
         assert!(bitter.has_bits_remaining(1));
@@ -1134,7 +1134,7 @@ mod tests {
 
     #[test]
     fn test_has_remaining_bits_bit_by_bit() {
-        let mut bitter = LittleEndianBits::new(&[0, 0, 0, 0, 0, 0, 0, 0]);
+        let mut bitter = LittleEndianReader::new(&[0, 0, 0, 0, 0, 0, 0, 0]);
         for _ in 0..200 {
             assert!(bitter.has_bits_remaining(1), bitter.read_bit().is_some());
         }
@@ -1142,13 +1142,13 @@ mod tests {
 
     #[test]
     fn test_16_bits_reads() {
-        let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+        let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
         assert_eq!(bitter.read_u32_bits(16), Some(0b0101_0101_1010_1010));
     }
 
     #[test]
     fn test_bit_bits_reads() {
-        let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+        let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
         assert_eq!(bitter.read_u32_bits(1), Some(0));
         assert_eq!(bitter.read_u32_bits(1), Some(1));
         assert_eq!(bitter.read_u32_bits(1), Some(0));
@@ -1172,11 +1172,11 @@ mod tests {
     #[test]
     fn test_read_bytes() {
         let mut buf = [0u8; 2];
-        let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+        let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
         assert!(bitter.read_bytes(&mut buf));
         assert_eq!(&buf, &[0b1010_1010, 0b0101_0101]);
 
-        let mut bitter = LittleEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+        let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
         assert_eq!(bitter.read_bit_unchecked(), false);
         assert!(!bitter.read_bytes(&mut buf));
         assert!(bitter.read_bytes(&mut buf[0..1]));
@@ -1185,13 +1185,13 @@ mod tests {
 
     #[test]
     fn test_read_bytes2() {
-        let mut bitter = LittleEndianBits::new(&[]);
+        let mut bitter = LittleEndianReader::new(&[]);
         assert!(bitter.read_bytes(&mut []));
     }
 
     #[test]
     fn test_read_bytes3() {
-        let mut bitter = LittleEndianBits::new(&[0, 0]);
+        let mut bitter = LittleEndianReader::new(&[0, 0]);
         let mut buf = [0u8; 1];
         assert!(bitter.read_bytes(&mut buf));
         assert_eq!(&buf, &[0]);
@@ -1199,7 +1199,7 @@ mod tests {
 
     #[test]
     fn test_read_bytes4() {
-        let mut bitter = LittleEndianBits::new(&[0, 120]);
+        let mut bitter = LittleEndianReader::new(&[0, 120]);
         let mut buf = [0u8; 1];
         assert!(bitter.read_bytes(&mut buf));
         assert_eq!(&buf, &[0]);
@@ -1208,7 +1208,7 @@ mod tests {
 
     #[test]
     fn test_read_bytes5() {
-        let mut bitter = LittleEndianBits::new(&[119, 0, 120]);
+        let mut bitter = LittleEndianReader::new(&[119, 0, 120]);
         assert_eq!(bitter.read_u32_bits_unchecked(8), 119);
         let mut buf = [0u8; 1];
         assert!(bitter.read_bytes(&mut buf));
@@ -1218,7 +1218,7 @@ mod tests {
 
     #[test]
     fn test_u8_reads() {
-        let mut bitter = LittleEndianBits::new(&[0xff, 0xfe, 0xfa, 0xf7, 0xf5, 0xf0, 0xb1, 0xb2]);
+        let mut bitter = LittleEndianReader::new(&[0xff, 0xfe, 0xfa, 0xf7, 0xf5, 0xf0, 0xb1, 0xb2]);
         assert_eq!(bitter.read_u8(), Some(0xff));
         assert_eq!(bitter.read_u8(), Some(0xfe));
         assert_eq!(bitter.read_u8(), Some(0xfa));
@@ -1232,7 +1232,7 @@ mod tests {
 
     #[test]
     fn test_u8_unchecked_reads() {
-        let mut bitter = LittleEndianBits::new(&[0xff, 0xfe, 0xfa, 0xf7, 0xf5, 0xf0, 0xb1, 0xb2]);
+        let mut bitter = LittleEndianReader::new(&[0xff, 0xfe, 0xfa, 0xf7, 0xf5, 0xf0, 0xb1, 0xb2]);
         assert_eq!(bitter.read_u8_unchecked(), 0xff);
         assert_eq!(bitter.read_u8_unchecked(), 0xfe);
         assert_eq!(bitter.read_u8_unchecked(), 0xfa);
@@ -1246,7 +1246,7 @@ mod tests {
 
     #[test]
     fn test_u64_reads() {
-        let mut bitter = LittleEndianBits::new(&[
+        let mut bitter = LittleEndianReader::new(&[
             0xff, 0xfe, 0xfa, 0xf7, 0xf5, 0xf0, 0xb1, 0xb2, 0x01, 0xff, 0xfe, 0xfa, 0xf7, 0xf5,
             0xf0, 0xb1, 0xb3,
         ]);
@@ -1257,7 +1257,7 @@ mod tests {
 
     #[test]
     fn test_u64_unchecked_reads() {
-        let mut bitter = LittleEndianBits::new(&[
+        let mut bitter = LittleEndianReader::new(&[
             0xff, 0xfe, 0xfa, 0xf7, 0xf5, 0xf0, 0xb1, 0xb2, 0x01, 0xff, 0xfe, 0xfa, 0xf7, 0xf5,
             0xf0, 0xb1, 0xb3,
         ]);
@@ -1268,7 +1268,7 @@ mod tests {
 
     #[test]
     fn test_i64_unchecked_reads() {
-        let mut bitter = LittleEndianBits::new(&[
+        let mut bitter = LittleEndianReader::new(&[
             0xff, 0xfe, 0xfa, 0xf7, 0xf5, 0xf0, 0xb1, 0xb2, 0x01, 0xff, 0xfe, 0xfa, 0xf7, 0xf5,
             0xf0, 0xb1, 0xb3,
         ]);
@@ -1288,13 +1288,13 @@ mod tests {
 
     #[test]
     fn test_u32_bit_read() {
-        let mut bitter = LittleEndianBits::new(&[0xff, 0x00, 0xab, 0xcd]);
+        let mut bitter = LittleEndianReader::new(&[0xff, 0x00, 0xab, 0xcd]);
         assert_eq!(bitter.read_u32_bits(32), Some(0xcdab00ff));
     }
 
     #[test]
     fn test_u32_reads() {
-        let mut bitter = LittleEndianBits::new(&[
+        let mut bitter = LittleEndianReader::new(&[
             0xff,
             0x00,
             0xab,
@@ -1314,7 +1314,7 @@ mod tests {
 
     #[test]
     fn test_f32_reads() {
-        let mut bitter = LittleEndianBits::new(&[
+        let mut bitter = LittleEndianReader::new(&[
             0b0111_1011,
             0b0001_0100,
             0b1010_1110,
@@ -1332,7 +1332,7 @@ mod tests {
 
     #[test]
     fn test_f32_unchecked_reads() {
-        let mut bitter = LittleEndianBits::new(&[
+        let mut bitter = LittleEndianReader::new(&[
             0b0111_1011,
             0b0001_0100,
             0b1010_1110,
@@ -1350,7 +1350,7 @@ mod tests {
 
     #[test]
     fn test_u32_bits() {
-        let mut bitter = LittleEndianBits::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee]);
+        let mut bitter = LittleEndianReader::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee]);
         assert_eq!(bitter.read_u32_bits(10), Some(0x1ff));
         assert_eq!(bitter.read_u32_bits(10), Some(0x3b7));
         assert_eq!(bitter.read_u32_bits(10), Some(0x3fe));
@@ -1360,7 +1360,7 @@ mod tests {
 
     #[test]
     fn test_u32_unchecked() {
-        let mut bitter = LittleEndianBits::new(&[
+        let mut bitter = LittleEndianReader::new(&[
             0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         ]);
         assert_eq!(bitter.read_u32_unchecked(), 0xffff_ffff);
@@ -1371,7 +1371,7 @@ mod tests {
     #[test]
     fn test_u32_bits_unchecked() {
         let mut bitter =
-            LittleEndianBits::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
+            LittleEndianReader::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
         assert_eq!(bitter.read_u32_bits_unchecked(10), 0x1ff);
         assert_eq!(bitter.read_u32_bits_unchecked(10), 0x3b7);
         assert_eq!(bitter.read_u32_bits_unchecked(10), 0x3fe);
@@ -1386,7 +1386,7 @@ mod tests {
 
     #[test]
     fn test_u32_bits_unchecked2() {
-        let mut bitter = LittleEndianBits::new(&[
+        let mut bitter = LittleEndianReader::new(&[
             0x9c, 0x73, 0xce, 0x39, 0xe7, 0x9c, 0x73, 0xce, 0x39, 0xe7, 0x9c, 0x73, 0xce, 0x39,
             0xe7,
         ]);
@@ -1398,7 +1398,7 @@ mod tests {
     #[test]
     fn test_i32_bits_unchecked() {
         let mut bitter =
-            LittleEndianBits::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
+            LittleEndianReader::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
         assert_eq!(bitter.read_i32_bits_unchecked(10), 0x1ff);
         assert_eq!(bitter.read_i32_bits_unchecked(10), 0x3b7);
         assert_eq!(bitter.read_i32_bits_unchecked(10), 0x3fe);
@@ -1413,7 +1413,7 @@ mod tests {
 
     #[test]
     fn test_u32_bits2() {
-        let mut bitter = LittleEndianBits::new(&[
+        let mut bitter = LittleEndianReader::new(&[
             0x9c, 0x73, 0xce, 0x39, 0xe7, 0x9c, 0x73, 0xce, 0x39, 0xe7, 0x9c, 0x73, 0xce, 0x39,
             0xe7,
         ]);
@@ -1424,7 +1424,7 @@ mod tests {
 
     #[test]
     fn test_i32_bits2() {
-        let mut bitter = LittleEndianBits::new(&[
+        let mut bitter = LittleEndianReader::new(&[
             0x9c, 0x73, 0xce, 0x39, 0xe7, 0x9c, 0x73, 0xce, 0x39, 0xe7, 0x9c, 0x73, 0xce, 0x39,
             0xe7,
         ]);
@@ -1447,55 +1447,55 @@ mod tests {
 
     #[test]
     fn test_max_read() {
-        let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
+        let mut bitter = LittleEndianReader::new(&[0b1111_1000]);
         assert_eq!(bitter.read_bits_max(20), Some(8));
         assert_eq!(bitter.read_bits_max(20), Some(15));
         assert_eq!(bitter.read_bits_max(20), None);
 
-        let mut bitter = LittleEndianBits::new(&[0b1111_0000]);
+        let mut bitter = LittleEndianReader::new(&[0b1111_0000]);
         assert_eq!(bitter.read_bits_max(20), Some(16));
         assert_eq!(bitter.read_bits_max(20), None);
 
-        let mut bitter = LittleEndianBits::new(&[0b1110_0010]);
+        let mut bitter = LittleEndianReader::new(&[0b1110_0010]);
         assert_eq!(bitter.read_bits_max(20), Some(2));
 
-        let mut bitter = LittleEndianBits::new(&[0b0001_0100]);
+        let mut bitter = LittleEndianReader::new(&[0b0001_0100]);
         assert_eq!(bitter.read_bits_max(20), Some(4));
 
-        let mut bitter = LittleEndianBits::new(&[0b0001_0011]);
+        let mut bitter = LittleEndianReader::new(&[0b0001_0011]);
         assert_eq!(bitter.read_bits_max(20), Some(19));
 
-        let mut bitter = LittleEndianBits::new(&[0b0001_0011]);
+        let mut bitter = LittleEndianReader::new(&[0b0001_0011]);
         assert_eq!(bitter.read_bits_max(0), Some(0));
 
-        let mut bitter = LittleEndianBits::new(&[0xff, 0xff, 0xff, 0xff]);
+        let mut bitter = LittleEndianReader::new(&[0xff, 0xff, 0xff, 0xff]);
         assert_eq!(bitter.read_bits_max(u32::max_value()), Some(0x7fff_ffff));
     }
 
     #[test]
     fn test_max_read_computed() {
-        let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
+        let mut bitter = LittleEndianReader::new(&[0b1111_1000]);
         assert_eq!(bitter.read_bits_max_computed(4, 20), Some(8));
         assert_eq!(bitter.read_bits_max_computed(4, 20), Some(15));
         assert_eq!(bitter.read_bits_max_computed(4, 20), None);
 
-        let mut bitter = LittleEndianBits::new(&[0b1111_0000]);
+        let mut bitter = LittleEndianReader::new(&[0b1111_0000]);
         assert_eq!(bitter.read_bits_max_computed(4, 20), Some(16));
         assert_eq!(bitter.read_bits_max_computed(4, 20), None);
 
-        let mut bitter = LittleEndianBits::new(&[0b1110_0010]);
+        let mut bitter = LittleEndianReader::new(&[0b1110_0010]);
         assert_eq!(bitter.read_bits_max_computed(4, 20), Some(2));
 
-        let mut bitter = LittleEndianBits::new(&[0b0001_0100]);
+        let mut bitter = LittleEndianReader::new(&[0b0001_0100]);
         assert_eq!(bitter.read_bits_max_computed(4, 20), Some(4));
 
-        let mut bitter = LittleEndianBits::new(&[0b0001_0011]);
+        let mut bitter = LittleEndianReader::new(&[0b0001_0011]);
         assert_eq!(bitter.read_bits_max_computed(4, 20), Some(19));
 
-        let mut bitter = LittleEndianBits::new(&[0b0001_0011]);
+        let mut bitter = LittleEndianReader::new(&[0b0001_0011]);
         assert_eq!(bitter.read_bits_max_computed(0, 00), Some(0));
 
-        let mut bitter = LittleEndianBits::new(&[0xff, 0xff, 0xff, 0xff]);
+        let mut bitter = LittleEndianReader::new(&[0xff, 0xff, 0xff, 0xff]);
         assert_eq!(
             bitter.read_bits_max_computed(31, u32::max_value()),
             Some(0x7fff_ffff)
@@ -1504,26 +1504,26 @@ mod tests {
 
     #[test]
     fn test_max_read_unchecked() {
-        let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
+        let mut bitter = LittleEndianReader::new(&[0b1111_1000]);
         assert_eq!(bitter.read_bits_max_unchecked(20), 8);
         assert_eq!(bitter.read_bits_max_unchecked(20), 15);
 
-        let mut bitter = LittleEndianBits::new(&[0b1111_0000]);
+        let mut bitter = LittleEndianReader::new(&[0b1111_0000]);
         assert_eq!(bitter.read_bits_max_unchecked(20), 16);
 
-        let mut bitter = LittleEndianBits::new(&[0b1110_0010]);
+        let mut bitter = LittleEndianReader::new(&[0b1110_0010]);
         assert_eq!(bitter.read_bits_max_unchecked(20), 2);
 
-        let mut bitter = LittleEndianBits::new(&[0b0001_0100]);
+        let mut bitter = LittleEndianReader::new(&[0b0001_0100]);
         assert_eq!(bitter.read_bits_max_unchecked(20), 4);
 
-        let mut bitter = LittleEndianBits::new(&[0b0001_0011]);
+        let mut bitter = LittleEndianReader::new(&[0b0001_0011]);
         assert_eq!(bitter.read_bits_max_unchecked(20), 19);
 
-        let mut bitter = LittleEndianBits::new(&[0b0001_0011]);
+        let mut bitter = LittleEndianReader::new(&[0b0001_0011]);
         assert_eq!(bitter.read_bits_max_unchecked(0), 0);
 
-        let mut bitter = LittleEndianBits::new(&[0xff, 0xff, 0xff, 0xff]);
+        let mut bitter = LittleEndianReader::new(&[0xff, 0xff, 0xff, 0xff]);
         assert_eq!(
             bitter.read_bits_max_unchecked(u32::max_value()),
             0x7fff_ffff
@@ -1532,26 +1532,26 @@ mod tests {
 
     #[test]
     fn test_max_read_unchecked_computed() {
-        let mut bitter = LittleEndianBits::new(&[0b1111_1000]);
+        let mut bitter = LittleEndianReader::new(&[0b1111_1000]);
         assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 8);
         assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 15);
 
-        let mut bitter = LittleEndianBits::new(&[0b1111_0000]);
+        let mut bitter = LittleEndianReader::new(&[0b1111_0000]);
         assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 16);
 
-        let mut bitter = LittleEndianBits::new(&[0b1110_0010]);
+        let mut bitter = LittleEndianReader::new(&[0b1110_0010]);
         assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 2);
 
-        let mut bitter = LittleEndianBits::new(&[0b0001_0100]);
+        let mut bitter = LittleEndianReader::new(&[0b0001_0100]);
         assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 4);
 
-        let mut bitter = LittleEndianBits::new(&[0b0001_0011]);
+        let mut bitter = LittleEndianReader::new(&[0b0001_0011]);
         assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 19);
 
-        let mut bitter = LittleEndianBits::new(&[0b0001_0011]);
+        let mut bitter = LittleEndianReader::new(&[0b0001_0011]);
         assert_eq!(bitter.read_bits_max_computed_unchecked(0, 0), 0);
 
-        let mut bitter = LittleEndianBits::new(&[0xff, 0xff, 0xff, 0xff]);
+        let mut bitter = LittleEndianReader::new(&[0xff, 0xff, 0xff, 0xff]);
         assert_eq!(
             bitter.read_bits_max_computed_unchecked(31, u32::max_value()),
             0x7fff_ffff
@@ -1560,28 +1560,28 @@ mod tests {
 
     #[test]
     fn test_if_get() {
-        let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
-        assert_eq!(bitter.if_get(LittleEndianBits::read_u8), Some(Some(0x7f)));
-        assert_eq!(bitter.if_get(LittleEndianBits::read_u8), Some(None));
-        assert_eq!(bitter.if_get(LittleEndianBits::read_u8), None);
+        let mut bitter = LittleEndianReader::new(&[0xff, 0x04]);
+        assert_eq!(bitter.if_get(LittleEndianReader::read_u8), Some(Some(0x7f)));
+        assert_eq!(bitter.if_get(LittleEndianReader::read_u8), Some(None));
+        assert_eq!(bitter.if_get(LittleEndianReader::read_u8), None);
     }
 
     #[test]
     fn test_if_get_unchecked() {
-        let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
+        let mut bitter = LittleEndianReader::new(&[0xff, 0x04]);
         assert_eq!(
-            bitter.if_get_unchecked(LittleEndianBits::read_u8_unchecked),
+            bitter.if_get_unchecked(LittleEndianReader::read_u8_unchecked),
             Some(0x7f)
         );
         assert_eq!(
-            bitter.if_get_unchecked(LittleEndianBits::read_u8_unchecked),
+            bitter.if_get_unchecked(LittleEndianReader::read_u8_unchecked),
             None
         );
     }
 
     #[test]
     fn test_approx_bytes_and_empty() {
-        let mut bitter = LittleEndianBits::new(&[0xff, 0x04]);
+        let mut bitter = LittleEndianReader::new(&[0xff, 0x04]);
         assert!(!bitter.is_empty());
         assert_eq!(bitter.approx_bytes_remaining(), 2);
         assert!(bitter.read_bit().is_some());
@@ -1604,14 +1604,14 @@ mod tests {
     #[test]
     fn has_bits_remaining_max() {
         let data = vec![];
-        let bits = LittleEndianBits::new(data.as_slice());
+        let bits = LittleEndianReader::new(data.as_slice());
         assert_eq!(false, bits.has_bits_remaining(usize::max_value()));
     }
 
     #[test]
     fn i16_test() {
         let data = [0b1111_1111, 0b1111_1111];
-        let mut bits = LittleEndianBits::new(&data[..]);
+        let mut bits = LittleEndianReader::new(&data[..]);
 
         assert_eq!(bits.read_i16(), Some(i16::from_le_bytes(data)));
     }
@@ -1619,7 +1619,7 @@ mod tests {
     #[test]
     fn i16_min_test() {
         let data = [0b0000_0000, 0b1000_0000];
-        let mut bits = LittleEndianBits::new(&data[..]);
+        let mut bits = LittleEndianReader::new(&data[..]);
 
         assert_eq!(bits.read_i16(), Some(core::i16::MIN));
     }
@@ -1627,7 +1627,7 @@ mod tests {
     #[test]
     fn i16_max_test() {
         let data = [0b1111_1111, 0b0111_1111];
-        let mut bits = LittleEndianBits::new(&data[..]);
+        let mut bits = LittleEndianReader::new(&data[..]);
 
         assert_eq!(bits.read_i16(), Some(core::i16::MAX));
     }
@@ -1637,7 +1637,7 @@ mod tests {
         let mut data = Vec::new();
         data.extend_from_slice(&(1u64.to_le_bytes()));
         data.extend_from_slice(&(0u64.to_le_bytes()));
-        let mut bits = LittleEndianBits::new(data.as_slice());
+        let mut bits = LittleEndianReader::new(data.as_slice());
         assert_eq!(bits.read_u64(), Some(1));
         assert_eq!(bits.read_u64(), Some(0));
     }
@@ -1647,7 +1647,7 @@ mod tests {
         let mut data = Vec::new();
         data.extend_from_slice(&(0u64.to_le_bytes()));
         data.extend_from_slice(&(1u64.to_le_bytes()));
-        let mut bits = LittleEndianBits::new(data.as_slice());
+        let mut bits = LittleEndianReader::new(data.as_slice());
         for _ in 0..8 {
             assert_eq!(bits.read_u8(), Some(0));
         }
@@ -1659,7 +1659,7 @@ mod tests {
         let mut data = Vec::new();
         data.extend_from_slice(&(0u64.to_le_bytes()));
         data.extend_from_slice(&(1u64.to_le_bytes()));
-        let mut bits = LittleEndianBits::new(data.as_slice());
+        let mut bits = LittleEndianReader::new(data.as_slice());
         for _ in 0..8 {
             assert_eq!(bits.read_u8_unchecked(), 0);
         }
@@ -1669,7 +1669,7 @@ mod tests {
     #[test]
     fn regression1() {
         let data = vec![0b0000_0010, 0b0011_1111, 0b1011_1100];
-        let mut bits = LittleEndianBits::new(data.as_slice());
+        let mut bits = LittleEndianReader::new(data.as_slice());
 
         assert_eq!(bits.read_u32_bits(3), Some(2));
         assert_eq!(bits.read_u8(), Some(224));
@@ -1680,7 +1680,7 @@ mod tests {
     #[test]
     fn regression2() {
         let data = vec![2, 63, 63, 2, 63, 2, 0, 0, 0];
-        let mut bits = LittleEndianBits::new(data.as_slice());
+        let mut bits = LittleEndianReader::new(data.as_slice());
 
         assert_eq!(bits.read_u32_bits(3), Some(2));
         assert_eq!(bits.read_u8(), Some(224));
@@ -1690,11 +1690,11 @@ mod tests {
 
 #[cfg(test)]
 mod be_tests {
-    use super::{BigEndianBits, BitReader};
+    use super::{BigEndianReader, BitReader};
 
     #[test]
     fn test_be_bit_bits_reads() {
-        let mut bitter = BigEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+        let mut bitter = BigEndianReader::new(&[0b1010_1010, 0b0101_0101]);
         assert!(bitter.has_bits_remaining(16));
         assert_eq!(bitter.bits_remaining(), Some(16));
         assert_eq!(bitter.read_u32_bits(1), Some(1));
@@ -1721,7 +1721,7 @@ mod be_tests {
 
     #[test]
     fn test_whole_bytes() {
-        let mut bitter = BigEndianBits::new(&[
+        let mut bitter = BigEndianReader::new(&[
             0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd, 0xff, 0xdd, 0xee, 0xff,
             0xdd,
         ]);
@@ -1742,7 +1742,7 @@ mod be_tests {
     #[test]
     fn test_u32_bits() {
         let mut bitter =
-            BigEndianBits::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
+            BigEndianReader::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
         assert_eq!(bitter.read_u32_bits(10), Some(0b11_1111_1111));
         assert_eq!(bitter.read_u32_bits(10), Some(0b01_1101_1110));
         assert_eq!(bitter.read_u32_bits(10), Some(0b11_1011_1111));
@@ -1757,7 +1757,7 @@ mod be_tests {
 
     #[test]
     fn test_u32_bits2() {
-        let mut bitter = BigEndianBits::new(&[
+        let mut bitter = BigEndianReader::new(&[
             0b1110_0111,
             0b0011_1001,
             0b1100_1110,
@@ -1776,7 +1776,7 @@ mod be_tests {
 
     #[test]
     fn test_bit_unchecked_bits_reads() {
-        let mut bitter = BigEndianBits::new(&[0b1010_1010, 0b0101_0101]);
+        let mut bitter = BigEndianReader::new(&[0b1010_1010, 0b0101_0101]);
         assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
         assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
         assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
@@ -1799,7 +1799,7 @@ mod be_tests {
 
     #[test]
     fn test_u64_unchecked_reads() {
-        let mut bitter = BigEndianBits::new(&[
+        let mut bitter = BigEndianReader::new(&[
             0xff, 0xfe, 0xfa, 0xf7, 0xf5, 0xf0, 0xb1, 0xb2, 0x01, 0xff, 0xfe, 0xfa, 0xf7, 0xf5,
             0xf0, 0xb1, 0xb3,
         ]);
@@ -1816,7 +1816,7 @@ mod be_tests {
 
     #[test]
     fn test_u32_bit_read() {
-        let mut bitter = BigEndianBits::new(&[0xff, 0x00, 0xab, 0xcd]);
+        let mut bitter = BigEndianReader::new(&[0xff, 0x00, 0xab, 0xcd]);
         assert_eq!(bitter.read_u32_bits(32), Some(0xff00abcd));
     }
 
@@ -1825,7 +1825,7 @@ mod be_tests {
         let mut data = Vec::new();
         data.extend_from_slice(&(0u64.to_be_bytes()));
         data.extend_from_slice(&(1u64.to_be_bytes()));
-        let mut bits = BigEndianBits::new(data.as_slice());
+        let mut bits = BigEndianReader::new(data.as_slice());
         assert_eq!(bits.read_u64(), Some(0));
         assert_eq!(bits.read_u64(), Some(1));
     }
@@ -1835,7 +1835,7 @@ mod be_tests {
         let mut data = Vec::new();
         data.extend_from_slice(&(1u64.to_be_bytes()));
         data.extend_from_slice(&(0u64.to_be_bytes()));
-        let mut bits = BigEndianBits::new(data.as_slice());
+        let mut bits = BigEndianReader::new(data.as_slice());
         assert_eq!(bits.read_u64(), Some(1));
         assert_eq!(bits.read_u64(), Some(0));
     }
@@ -1845,7 +1845,7 @@ mod be_tests {
         let mut data = Vec::new();
         data.extend_from_slice(&(0u64.to_be_bytes()));
         data.extend_from_slice(&(1u64.to_be_bytes()));
-        let mut bits = BigEndianBits::new(data.as_slice());
+        let mut bits = BigEndianReader::new(data.as_slice());
         for _ in 0..8 {
             assert_eq!(bits.read_u8(), Some(0));
         }
@@ -1857,7 +1857,7 @@ mod be_tests {
         let mut data = Vec::new();
         data.extend_from_slice(&(0u64.to_be_bytes()));
         data.extend_from_slice(&(1u64.to_be_bytes()));
-        let mut bits = BigEndianBits::new(data.as_slice());
+        let mut bits = BigEndianReader::new(data.as_slice());
         assert_eq!(bits.read_u64_unchecked(), 0);
         assert_eq!(bits.read_u64_unchecked(), 1);
     }
@@ -1867,7 +1867,7 @@ mod be_tests {
         let mut data = Vec::new();
         data.extend_from_slice(&(1u64.to_be_bytes()));
         data.extend_from_slice(&(0u64.to_be_bytes()));
-        let mut bits = BigEndianBits::new(data.as_slice());
+        let mut bits = BigEndianReader::new(data.as_slice());
         assert_eq!(bits.read_u64_unchecked(), 1);
         assert_eq!(bits.read_u64_unchecked(), 0);
     }
