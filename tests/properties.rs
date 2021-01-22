@@ -294,6 +294,28 @@ fn read_f32_unchecked_eq(bits: u32) -> bool {
 }
 
 #[quickcheck]
+fn read_f64_eq(bits: u64) -> bool {
+    let le_data = bits.to_le_bytes();
+    let be_data = bits.to_be_bytes();
+
+    let mut lebits = LittleEndianReader::new(&le_data);
+    let mut bebits = BigEndianReader::new(&be_data);
+
+    lebits.read_f64() == bebits.read_f64()
+}
+
+#[quickcheck]
+fn read_f64_unchecked_eq(bits: u64) -> bool {
+    let le_data = bits.to_le_bytes();
+    let be_data = bits.to_be_bytes();
+
+    let mut lebits = LittleEndianReader::new(&le_data);
+    let mut bebits = BigEndianReader::new(&be_data);
+
+    lebits.read_f64_unchecked() == bebits.read_f64_unchecked()
+}
+
+#[quickcheck]
 fn back_to_back_le_u64(x: u64, y: u64) -> bool {
     let mut data = Vec::new();
     data.extend_from_slice(&(x.to_le_bytes()));
