@@ -61,36 +61,48 @@ fn v1_eq(data: Vec<u8>) -> bool {
         && bits.read_u8() == bitsv1.read_u8()
 }
 
-#[quickcheck]
-fn read_byte_eq(data: Vec<u8>) -> bool {
-    let mut lebits = LittleEndianBits::new(data.as_slice());
-    let mut bebits = BigEndianBits::new(data.as_slice());
+// #[quickcheck]
+// fn read_byte_eq(data: Vec<u8>) -> bool {
+//     let mut lebits = LittleEndianBits::new(data.as_slice());
+//     let mut bebits = BigEndianBits::new(data.as_slice());
 
-    lebits.read_u8() == bebits.read_u8()
+//     for i in &data {
+//         if lebits.read_u8() != bebits.read_u8() {
+//             return false;
+//         }
+//     }
+
+//     lebits.is_empty() && bebits.is_empty()
+// }
+
+#[quickcheck]
+fn read_u16_eq(x: u16) -> bool {
+    let le_data = x.to_le_bytes();
+    let be_data = x.to_be_bytes();
+    let mut lebits = LittleEndianBits::new(&le_data);
+    let mut bebits = BigEndianBits::new(&be_data);
+
+    lebits.read_u16() == bebits.read_u16()
 }
 
 #[quickcheck]
-fn read_u16_eq(data: Vec<u8>) -> bool {
-    let mut lebits = LittleEndianBits::new(data.as_slice());
-    let mut bebits = BigEndianBits::new(data.as_slice());
+fn read_u32_eq(x: u32) -> bool {
+    let le_data = x.to_le_bytes();
+    let be_data = x.to_be_bytes();
+    let mut lebits = LittleEndianBits::new(&le_data);
+    let mut bebits = BigEndianBits::new(&be_data);
 
-    lebits.read_u16().map(|x| x.to_be()) == bebits.read_u16()
+    lebits.read_u32() == bebits.read_u32()
 }
 
 #[quickcheck]
-fn read_u32_eq(data: Vec<u8>) -> bool {
-    let mut lebits = LittleEndianBits::new(data.as_slice());
-    let mut bebits = BigEndianBits::new(data.as_slice());
+fn read_u64_eq(x: u64) -> bool {
+    let le_data = x.to_le_bytes();
+    let be_data = x.to_be_bytes();
+    let mut lebits = LittleEndianBits::new(&le_data);
+    let mut bebits = BigEndianBits::new(&be_data);
 
-    lebits.read_u32().map(|x| x.to_be()) == bebits.read_u32()
-}
-
-#[quickcheck]
-fn read_u64_eq(data: Vec<u8>) -> bool {
-    let mut lebits = LittleEndianBits::new(data.as_slice());
-    let mut bebits = BigEndianBits::new(data.as_slice());
-
-    lebits.read_u64().map(|x| x.to_be()) == bebits.read_u64()
+    lebits.read_u64() == bebits.read_u64()
 }
 
 #[quickcheck]

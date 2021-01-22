@@ -12,7 +12,8 @@ Bitter takes a slice of byte data and reads bits in a desired endian format plat
  - ✔ > 5 GB/s throughput when reading large number of bits
  - ✔ > 1 GB/s throughput when reading single digit sized chunks of bits
  - ✔ two APIs: one for safety and one for speed
- - ✔ zero allocations
+ - ✔ zero dependencies
+ - ✔ zer  o allocations
  - ✔ `no_std` compatible
 
 ## Example
@@ -805,15 +806,15 @@ impl<'a> LittleEndianBits<'a> {
             if self.data.len() >= BYTE_WIDTH {
                 core::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64).to_le()
             } else {
-                let mut data: u64 = 0;
+                let mut result: u64 = 0;
                 let len = self.data.len();
                 core::ptr::copy_nonoverlapping(
                     self.data.as_ptr(),
-                    &mut data as *mut u64 as *mut u8,
+                    &mut result as *mut u64 as *mut u8,
                     len,
                 );
                 self.last_read = true;
-                data.to_le()
+                result.to_le()
             }
         }
     }
@@ -924,15 +925,15 @@ impl<'a> BigEndianBits<'a> {
             if self.data.len() >= BYTE_WIDTH {
                 core::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64).to_be()
             } else {
-                let mut data: u64 = 0;
+                let mut result: u64 = 0;
                 let len = self.data.len();
                 core::ptr::copy_nonoverlapping(
                     self.data.as_ptr(),
-                    &mut data as *mut u64 as *mut u8,
+                    &mut result as *mut u64 as *mut u8,
                     len,
                 );
                 self.last_read = true;
-                data.to_be()
+                result.to_be()
             }
         }
     }

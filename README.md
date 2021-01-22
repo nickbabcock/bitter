@@ -15,6 +15,7 @@ Bitter takes a slice of byte data and reads bits in a desired endian format plat
  - ✔ > 1 GB/s throughput when reading single digit sized chunks of bits
  - ✔ two APIs: one for safety and one for speed
  - ✔ zero allocations
+ - ✔ zero dependencies
  - ✔ `no_std` compatible
 
 ## Example

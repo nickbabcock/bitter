@@ -27,3 +27,24 @@ fn test_f32_endian() {
     assert_eq!(lebits.read_f32(), Some(12.5f32));
     assert_eq!(bebits.read_f32(), Some(12.5f32));
 }
+
+#[test]
+fn read_byte_eq() {
+    let data = vec![0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+    let mut lebits = LittleEndianBits::new(data.as_slice());
+    let mut bebits = BigEndianBits::new(data.as_slice());
+
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+}
