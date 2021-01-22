@@ -48,6 +48,26 @@ fn read_byte_eq() {
     assert_eq!(lebits.read_u8(), bebits.read_u8());
     assert_eq!(lebits.read_u8(), bebits.read_u8());
 }
+
+#[test]
+fn read_byte_eq2() {
+    let data = vec![1, 0, 0, 0, 0, 0, 0, 0, 0];
+    let mut lebits = LittleEndianBits::new(data.as_slice());
+    let mut bebits = BigEndianBits::new(data.as_slice());
+
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+    assert_eq!(lebits.read_u8(), bebits.read_u8());
+}
+
+#[test]
 fn remaining_bits_le() {
     let data: &[u8] = &[0, 0, 0, 0, 0, 0, 0, 0, 0];
     let mut lebits = LittleEndianBits::new(data);

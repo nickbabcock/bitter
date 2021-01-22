@@ -833,7 +833,14 @@ impl<'a> LittleEndianBits<'a> {
             if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {
                 None
             } else {
-                let little = self.current_val.wrapping_shr(self.pos as u32);
+                let little = self.current_val.checked_shr(self.pos as u32).unwrap_or(0);
+                // let pos_mask = self.pos & 63;
+                // let little = self.current_val >> pos_mask;
+                // let overflowed = (self.pos != pos_mask) as i64;
+                // let overflowed = unsafe { std::mem::transmute::<i64, u64>(-overflowed) };
+                // let little_mask = u64::MAX;
+                // let little = (little & !little_mask) | (overflowed & little_mask);
+
                 self.data = new_data;
                 self.current_val = self.read();
                 let big = (self.current_val & bit_mask(left)) << (bts - left);
