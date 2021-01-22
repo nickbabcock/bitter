@@ -23,7 +23,7 @@ use bitter::{BitReader, LittleEndianReader};
 let mut bitter = LittleEndianReader::new(&[0xff, 0x04]);
 assert_eq!(bitter.read_bit(), Some(true));
 assert_eq!(bitter.read_u8(), Some(0x7f));
-assert_eq!(bitter.read_u32_bits(7), Some(0x02));
+assert_eq!(bitter.read_bits(7), Some(0x02));
 ```
 
 There are two main APIs available: checked and unchecked functions. The above example uses the checked API as return types are options to designate that there wasn't sufficient data to complete the read. Unchecked APIs will exhibit
@@ -42,7 +42,7 @@ let mut bitter = LittleEndianReader::new(&[0xff, 0x04]);
 if bitter.has_bits_remaining(16) {
     assert_eq!(bitter.read_bit_unchecked(), true);
     assert_eq!(bitter.read_u8_unchecked(), 0x7f);
-    assert_eq!(bitter.read_u32_bits_unchecked(7), 0x02);
+    assert_eq!(bitter.read_bits_unchecked(7), 0x02);
 }
 ```
 
@@ -189,9 +189,9 @@ pub trait BitReader {
     /// ```rust
     /// use bitter::{BitReader, BigEndianReader};
     /// let mut bitter = BigEndianReader::new(&[0xff, 0x00, 0xab, 0xcd]);
-    /// assert_eq!(bitter.read_u32_bits(32), Some(0xff00abcd));
+    /// assert_eq!(bitter.read_bits(32), Some(0xff00abcd));
     /// ```
-    fn read_u32_bits(&mut self, bits: i32) -> Option<u32>;
+    fn read_bits(&mut self, bits: i32) -> Option<u64>;
 
     /// Reads an arbitrary number of bits from 1 to 32 (inclusive)
     /// and returns the signed result.
@@ -236,7 +236,7 @@ pub trait BitReader {
     /// assert_eq!(bitter.read_bits_max(20), Some(8));
     /// assert_eq!(bitter.read_bits_max(20), Some(15));
     /// ```
-    fn read_bits_max(&mut self, max: u32) -> Option<u32>;
+    fn read_bits_max(&mut self, max: u64) -> Option<u64>;
 
     /// Same as `read_bits_max` except that this function accepts the already computed number of
     /// bits to at least read. For instance, if 20 is the max, then 4 bits are at least needed.
@@ -250,7 +250,7 @@ pub trait BitReader {
     /// assert_eq!(bitter.read_bits_max_computed(4, 20), Some(8));
     /// assert_eq!(bitter.read_bits_max_computed(4, 20), Some(15));
     /// ```
-    fn read_bits_max_computed(&mut self, bits: i32, max: u32) -> Option<u32>;
+    fn read_bits_max_computed(&mut self, bits: i32, max: u64) -> Option<u64>;
 
     /// *Assumes* there is at least one bit left in the stream.
     ///
@@ -364,9 +364,9 @@ pub trait BitReader {
     /// ```rust
     /// use bitter::{BitReader, BigEndianReader};
     /// let mut bitter = BigEndianReader::new(&[0xff, 0x00, 0xab, 0xcd]);
-    /// assert_eq!(bitter.read_u32_bits_unchecked(32), 0xff00abcd);
+    /// assert_eq!(bitter.read_bits_unchecked(32), 0xff00abcd);
     /// ```
-    fn read_u32_bits_unchecked(&mut self, bits: i32) -> u32;
+    fn read_bits_unchecked(&mut self, bits: i32) -> u64;
 
     /// Reads an arbitrary number of bits from 1 to 32 (inclusive)
     /// and returns the signed result.
@@ -409,7 +409,7 @@ pub trait BitReader {
     /// assert_eq!(bitter.read_bits_max_unchecked(20), 8);
     /// assert_eq!(bitter.read_bits_max_unchecked(20), 15);
     /// ```
-    fn read_bits_max_unchecked(&mut self, max: u32) -> u32;
+    fn read_bits_max_unchecked(&mut self, max: u64) -> u64;
 
     /// Same as `read_bits_max_unchecked` except that this function accepts the already computed number of
     /// bits to at least read. For instance, if 20 is the max, then 4 bits are at least needed.
@@ -423,7 +423,7 @@ pub trait BitReader {
     /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 8);
     /// assert_eq!(bitter.read_bits_max_computed_unchecked(4, 20), 15);
     /// ```
-    fn read_bits_max_computed_unchecked(&mut self, bits: i32, max: u32) -> u32;
+    fn read_bits_max_computed_unchecked(&mut self, bits: i32, max: u64) -> u64;
 
     /// Return approximately how many bytes are left in the bitstream. This
     /// can overestimate by one when the reader is at a position that is not
@@ -436,7 +436,7 @@ pub trait BitReader {
     /// assert_eq!(bitter.approx_bytes_remaining(), 1);
     /// assert!(bitter.read_bit().is_some());
     /// assert_eq!(bitter.approx_bytes_remaining(), 1);
-    /// assert!(bitter.read_u32_bits(7).is_some());
+    /// assert!(bitter.read_bits(7).is_some());
     /// assert_eq!(bitter.approx_bytes_remaining(), 0);
     /// ```
     fn approx_bytes_remaining(&self) -> usize;
@@ -452,7 +452,7 @@ pub trait BitReader {
     /// assert_eq!(bitter.bits_remaining(), Some(8));
     /// assert!(bitter.read_bit().is_some());
     /// assert_eq!(bitter.bits_remaining(), Some(7));
-    /// assert!(bitter.read_u32_bits(7).is_some());
+    /// assert!(bitter.read_bits(7).is_some());
     /// assert_eq!(bitter.bits_remaining(), Some(0));
     /// ```
     fn bits_remaining(&self) -> Option<usize>;
@@ -471,7 +471,7 @@ pub trait BitReader {
     /// assert!(bitter.has_bits_remaining(7));
     /// assert!(!bitter.has_bits_remaining(8));
     ///
-    /// assert!(bitter.read_u32_bits(7).is_some());
+    /// assert!(bitter.read_bits(7).is_some());
     /// assert!(!bitter.has_bits_remaining(7));
     /// assert!(bitter.has_bits_remaining(0));
     /// ```
@@ -508,16 +508,28 @@ pub trait BitReader {
 /// ```rust
 /// assert_eq!(bitter::bit_width(20), 5);
 /// assert_eq!(bitter::bit_width(0), 0);
-/// assert_eq!(bitter::bit_width(u32::max_value()), 32);
+/// assert_eq!(bitter::bit_width(u64::from(u32::max_value())), 32);
 /// ```
-pub const fn bit_width(input: u32) -> u32 {
-    (core::mem::size_of::<u32>() as u32) * 8 - input.leading_zeros()
+pub const fn bit_width(input: u64) -> u32 {
+    (core::mem::size_of::<u64>() as u32) * 8 - input.leading_zeros()
 }
 
-/// Generates the bitmask for 32-bit integers (yes, even though the return type is u64)
 #[inline]
-const fn bit_mask(bits: usize) -> u64 {
-    (1 << bits) - 1
+fn bit_mask(bits: usize) -> u64 {
+    let mask = -1i64 as u64;
+    let size = core::mem::size_of::<u64>() * 8;
+    mask >> (size - bits)
+}
+
+#[inline]
+fn bit_mask_zero(bits: usize) -> u64 {
+    if bits == 0 {
+        0
+    } else {
+        let mask = -1i64 as u64;
+        let size = core::mem::size_of::<u64>() * 8;
+        mask >> (size - bits)
+    }
 }
 
 /// Returns value shifted left by the given bits. If the
@@ -550,7 +562,7 @@ macro_rules! gen_read {
         #[inline]
         fn $name(&mut self) -> Option<$t> {
             let bits = (core::mem::size_of::<$t>() * 8) as i32;
-            self.read_u32_bits(bits).map(|x| x as $t)
+            self.read_bits(bits).map(|x| x as $t)
         }
     };
 }
@@ -560,7 +572,7 @@ macro_rules! gen_read_unchecked {
         #[inline]
         fn $name(&mut self) -> $t {
             let bits = (core::mem::size_of::<$t>() * 8) as i32;
-            self.read_u32_bits_unchecked(bits) as $t
+            self.read_bits_unchecked(bits) as $t
         }
     };
 }
@@ -639,23 +651,23 @@ macro_rules! generate_bitter_end {
             }
 
             #[inline]
-            fn read_u32_bits_unchecked(&mut self, bits: i32) -> u32 {
-                self.read_bits_unchecked(bits)
+            fn read_bits_unchecked(&mut self, bits: i32) -> u64 {
+                $name::read_bits_unchecked(self, bits)
             }
 
             #[inline]
-            fn read_u32_bits(&mut self, bits: i32) -> Option<u32> {
-                self.read_bits(bits)
+            fn read_bits(&mut self, bits: i32) -> Option<u64> {
+                $name::read_bits(self, bits)
             }
 
             #[inline]
             fn read_i32_bits_unchecked(&mut self, bits: i32) -> i32 {
-                self.read_u32_bits_unchecked(bits) as i32
+                self.read_bits_unchecked(bits) as i32
             }
 
             #[inline]
             fn read_i32_bits(&mut self, bits: i32) -> Option<i32> {
-                self.read_u32_bits(bits).map(|x| x as i32)
+                self.read_bits(bits).map(|x| x as i32)
             }
 
             #[inline]
@@ -702,12 +714,12 @@ macro_rules! generate_bitter_end {
 
             #[inline]
             fn read_bit(&mut self) -> Option<bool> {
-                self.read_u32_bits(1).map(|x| x != 0)
+                self.read_bits(1).map(|x| x != 0)
             }
 
             #[inline]
             fn read_bit_unchecked(&mut self) -> bool {
-                self.read_u32_bits_unchecked(1) & 1 != 0
+                self.read_bits_unchecked(1) == 1
             }
 
             #[inline]
@@ -771,15 +783,19 @@ macro_rules! generate_bitter_end {
                 }
             }
 
-            fn read_bits_max(&mut self, max: u32) -> Option<u32> {
+            fn read_bits_max(&mut self, max: u64) -> Option<u64> {
                 let bits = bit_width(max) as i32 - 1;
                 self.read_bits_max_computed(core::cmp::max(bits, 0), max)
             }
 
             #[inline]
-            fn read_bits_max_computed(&mut self, bits: i32, max: u32) -> Option<u32> {
+            fn read_bits_max_computed(&mut self, bits: i32, max: u64) -> Option<u64> {
                 debug_assert!(core::cmp::max(bit_width(max) as i32, 1) == bits + 1);
-                self.read_u32_bits(bits).and_then(|data| {
+                if bits == 0 {
+                    return Some(0);
+                }
+
+                self.read_bits(bits).and_then(|data| {
                     let up = data + (1 << bits);
                     if up >= max {
                         Some(data)
@@ -791,15 +807,19 @@ macro_rules! generate_bitter_end {
             }
 
             #[inline]
-            fn read_bits_max_unchecked(&mut self, max: u32) -> u32 {
+            fn read_bits_max_unchecked(&mut self, max: u64) -> u64 {
                 let bits = bit_width(max) as i32 - 1;
                 self.read_bits_max_computed_unchecked(core::cmp::max(bits, 0), max)
             }
 
             #[inline]
-            fn read_bits_max_computed_unchecked(&mut self, bits: i32, max: u32) -> u32 {
+            fn read_bits_max_computed_unchecked(&mut self, bits: i32, max: u64) -> u64 {
                 debug_assert!(core::cmp::max(bit_width(max) as i32, 1) == bits + 1);
-                let data = self.read_u32_bits_unchecked(bits);
+                if bits == 0 {
+                    return 0;
+                }
+
+                let data = self.read_bits_unchecked(bits);
 
                 // If the next bit is on, what would our value be
                 let up = data + (1 << bits);
@@ -872,13 +892,13 @@ impl<'a> LittleEndianReader<'a> {
     }
 
     #[inline]
-    fn read_bits(&mut self, bits: i32) -> Option<u32> {
+    fn read_bits(&mut self, bits: i32) -> Option<u64> {
         let bts = bits as usize;
         let new_pos = self.pos + bts;
         if new_pos <= self.end_pos {
             let res = (self.current_val >> self.pos) & bit_mask(bts);
             self.pos = new_pos;
-            Some(res as u32)
+            Some(res)
         } else if self.end_pos == BIT_WIDTH {
             let new_data = &self.data[BYTE_WIDTH..];
             let left = new_pos - BIT_WIDTH;
@@ -890,7 +910,7 @@ impl<'a> LittleEndianReader<'a> {
                 self.current_val = self.read();
                 let big = (self.current_val & bit_mask(left)) << (bts - left);
                 self.pos = left;
-                Some((little + big) as u32)
+                Some(little + big)
             }
         } else {
             None
@@ -936,13 +956,13 @@ impl<'a> LittleEndianReader<'a> {
     }
 
     #[inline]
-    fn read_bits_unchecked(&mut self, bits: i32) -> u32 {
+    fn read_bits_unchecked(&mut self, bits: i32) -> u64 {
         let bts = bits as usize;
         let new_pos = self.pos + bts;
         if new_pos <= BIT_WIDTH {
             let res = (self.current_val >> self.pos) & bit_mask(bts);
             self.pos = new_pos;
-            res as u32
+            res
         } else {
             let little = shr_mask(self.current_val, self.pos);
             self.data = &self.data[BYTE_WIDTH..];
@@ -950,7 +970,7 @@ impl<'a> LittleEndianReader<'a> {
             let left = new_pos - BIT_WIDTH;
             let big = (self.current_val & bit_mask(left)) << (bts - left);
             self.pos = left;
-            (little + big) as u32
+            little + big
         }
     }
 }
@@ -1020,26 +1040,26 @@ impl<'a> BigEndianReader<'a> {
     }
 
     #[inline]
-    fn read_bits(&mut self, bits: i32) -> Option<u32> {
+    fn read_bits(&mut self, bits: i32) -> Option<u64> {
         let bts = bits as usize;
         let new_pos = self.pos + bts;
         if new_pos <= self.end_pos {
             let res = (self.current_val >> (BIT_WIDTH - new_pos)) & bit_mask(bts);
             self.pos = new_pos;
-            Some(res as u32)
+            Some(res)
         } else if self.end_pos == BIT_WIDTH {
             let new_data = &self.data[BYTE_WIDTH..];
             let left = new_pos - BIT_WIDTH;
             if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {
                 None
             } else {
-                let mask = bit_mask(BIT_WIDTH - self.pos);
+                let mask = bit_mask_zero(BIT_WIDTH - self.pos);
                 let big = (self.current_val & mask) << left;
                 self.data = new_data;
                 self.current_val = self.read();
                 let little = self.current_val >> (BIT_WIDTH - left);
                 self.pos = left;
-                Some((little + big) as u32)
+                Some(little + big)
             }
         } else {
             None
@@ -1047,22 +1067,22 @@ impl<'a> BigEndianReader<'a> {
     }
 
     #[inline]
-    fn read_bits_unchecked(&mut self, bits: i32) -> u32 {
+    fn read_bits_unchecked(&mut self, bits: i32) -> u64 {
         let bts = bits as usize;
         let new_pos = self.pos + bts;
         if new_pos <= BIT_WIDTH {
             let res = (self.current_val >> (BIT_WIDTH - new_pos)) & bit_mask(bts);
             self.pos = new_pos;
-            res as u32
+            res
         } else {
-            let mask = bit_mask(BIT_WIDTH - self.pos);
+            let mask = bit_mask_zero(BIT_WIDTH - self.pos);
             let left = new_pos - BIT_WIDTH;
             let big = (self.current_val & mask) << left;
             self.data = &self.data[BYTE_WIDTH..];
             self.current_val = self.read();
             let little = self.current_val >> (BIT_WIDTH - left);
             self.pos = left;
-            (little + big) as u32
+            little + big
         }
     }
 }
@@ -1124,23 +1144,23 @@ mod tests {
     #[test]
     fn test_bit_unchecked_bits_reads() {
         let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
 
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
 
         assert_eq!(bitter.read_bit(), None);
     }
@@ -1152,12 +1172,12 @@ mod tests {
         assert!(bitter.has_bits_remaining(8));
         assert!(bitter.has_bits_remaining(9));
 
-        assert!(bitter.read_u32_bits(9).is_some());
+        assert!(bitter.read_bits(9).is_some());
         assert!(bitter.has_bits_remaining(7));
         assert!(!bitter.has_bits_remaining(8));
         assert!(!bitter.has_bits_remaining(9));
 
-        assert!(bitter.read_u32_bits(7).is_some());
+        assert!(bitter.read_bits(7).is_some());
         assert!(!bitter.has_bits_remaining(7));
         assert!(bitter.has_bits_remaining(0));
     }
@@ -1165,7 +1185,7 @@ mod tests {
     #[test]
     fn test_has_remaining_bits2() {
         let mut bitter = LittleEndianReader::new(&[0xff, 0xff, 0xff, 0xff]);
-        assert!(bitter.read_u32_bits(31).is_some());
+        assert!(bitter.read_bits(31).is_some());
         assert!(!bitter.has_bits_remaining(2));
         assert!(bitter.has_bits_remaining(1));
     }
@@ -1181,30 +1201,30 @@ mod tests {
     #[test]
     fn test_16_bits_reads() {
         let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
-        assert_eq!(bitter.read_u32_bits(16), Some(0b0101_0101_1010_1010));
+        assert_eq!(bitter.read_bits(16), Some(0b0101_0101_1010_1010));
     }
 
     #[test]
     fn test_bit_bits_reads() {
         let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
 
-        assert_eq!(bitter.read_u32_bits(1), None);
+        assert_eq!(bitter.read_bits(1), None);
     }
 
     #[test]
@@ -1247,11 +1267,11 @@ mod tests {
     #[test]
     fn test_read_bytes5() {
         let mut bitter = LittleEndianReader::new(&[119, 0, 120]);
-        assert_eq!(bitter.read_u32_bits_unchecked(8), 119);
+        assert_eq!(bitter.read_bits_unchecked(8), 119);
         let mut buf = [0u8; 1];
         assert!(bitter.read_bytes(&mut buf));
         assert_eq!(&buf, &[0]);
-        assert_eq!(bitter.read_u32_bits_unchecked(8), 120);
+        assert_eq!(bitter.read_bits_unchecked(8), 120);
     }
 
     #[test]
@@ -1327,7 +1347,7 @@ mod tests {
     #[test]
     fn test_u32_bit_read() {
         let mut bitter = LittleEndianReader::new(&[0xff, 0x00, 0xab, 0xcd]);
-        assert_eq!(bitter.read_u32_bits(32), Some(0xcdab00ff));
+        assert_eq!(bitter.read_bits(32), Some(0xcdab00ff));
     }
 
     #[test]
@@ -1389,11 +1409,11 @@ mod tests {
     #[test]
     fn test_u32_bits() {
         let mut bitter = LittleEndianReader::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee]);
-        assert_eq!(bitter.read_u32_bits(10), Some(0x1ff));
-        assert_eq!(bitter.read_u32_bits(10), Some(0x3b7));
-        assert_eq!(bitter.read_u32_bits(10), Some(0x3fe));
-        assert_eq!(bitter.read_u32_bits(10), Some(0x377));
-        assert_eq!(bitter.read_u32_bits(10), None);
+        assert_eq!(bitter.read_bits(10), Some(0x1ff));
+        assert_eq!(bitter.read_bits(10), Some(0x3b7));
+        assert_eq!(bitter.read_bits(10), Some(0x3fe));
+        assert_eq!(bitter.read_bits(10), Some(0x377));
+        assert_eq!(bitter.read_bits(10), None);
     }
 
     #[test]
@@ -1402,7 +1422,7 @@ mod tests {
             0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         ]);
         assert_eq!(bitter.read_u32_unchecked(), 0xffff_ffff);
-        assert_eq!(bitter.read_u32_bits_unchecked(30), 0x3fff_ffff);
+        assert_eq!(bitter.read_bits_unchecked(30), 0x3fff_ffff);
         assert_eq!(bitter.read_u32_unchecked(), 0xffff_ffff);
     }
 
@@ -1410,15 +1430,15 @@ mod tests {
     fn test_u32_bits_unchecked() {
         let mut bitter =
             LittleEndianReader::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
-        assert_eq!(bitter.read_u32_bits_unchecked(10), 0x1ff);
-        assert_eq!(bitter.read_u32_bits_unchecked(10), 0x3b7);
-        assert_eq!(bitter.read_u32_bits_unchecked(10), 0x3fe);
-        assert_eq!(bitter.read_u32_bits_unchecked(10), 0x377);
-        assert_eq!(bitter.read_u32_bits_unchecked(8), 0xee);
-        assert_eq!(bitter.read_u32_bits_unchecked(8), 0xaa);
-        assert_eq!(bitter.read_u32_bits_unchecked(8), 0xbb);
-        assert_eq!(bitter.read_u32_bits_unchecked(8), 0xcc);
-        assert_eq!(bitter.read_u32_bits_unchecked(8), 0xdd);
+        assert_eq!(bitter.read_bits_unchecked(10), 0x1ff);
+        assert_eq!(bitter.read_bits_unchecked(10), 0x3b7);
+        assert_eq!(bitter.read_bits_unchecked(10), 0x3fe);
+        assert_eq!(bitter.read_bits_unchecked(10), 0x377);
+        assert_eq!(bitter.read_bits_unchecked(8), 0xee);
+        assert_eq!(bitter.read_bits_unchecked(8), 0xaa);
+        assert_eq!(bitter.read_bits_unchecked(8), 0xbb);
+        assert_eq!(bitter.read_bits_unchecked(8), 0xcc);
+        assert_eq!(bitter.read_bits_unchecked(8), 0xdd);
         assert_eq!(bitter.read_bit(), None);
     }
 
@@ -1429,7 +1449,7 @@ mod tests {
             0xe7,
         ]);
         for _ in 0..10 {
-            assert_eq!(bitter.read_u32_bits_unchecked(5), 28);
+            assert_eq!(bitter.read_bits_unchecked(5), 28);
         }
     }
 
@@ -1456,7 +1476,7 @@ mod tests {
             0xe7,
         ]);
         for _ in 0..10 {
-            assert_eq!(bitter.read_u32_bits(5), Some(28));
+            assert_eq!(bitter.read_bits(5), Some(28));
         }
     }
 
@@ -1480,7 +1500,7 @@ mod tests {
         assert_eq!(3, bit_width(4));
         assert_eq!(5, bit_width(16));
         assert_eq!(5, bit_width(20));
-        assert_eq!(32, bit_width(u32::max_value()));
+        assert_eq!(64, bit_width(u64::max_value()));
     }
 
     #[test]
@@ -1506,8 +1526,12 @@ mod tests {
         let mut bitter = LittleEndianReader::new(&[0b0001_0011]);
         assert_eq!(bitter.read_bits_max(0), Some(0));
 
-        let mut bitter = LittleEndianReader::new(&[0xff, 0xff, 0xff, 0xff]);
-        assert_eq!(bitter.read_bits_max(u32::max_value()), Some(0x7fff_ffff));
+        let maxed = u64::MAX.to_le_bytes();
+        let mut bitter = LittleEndianReader::new(&maxed);
+        assert_eq!(
+            bitter.read_bits_max(u64::max_value()),
+            Some(0x7fff_ffff_ffff_ffff)
+        );
     }
 
     #[test]
@@ -1531,11 +1555,11 @@ mod tests {
         assert_eq!(bitter.read_bits_max_computed(4, 20), Some(19));
 
         let mut bitter = LittleEndianReader::new(&[0b0001_0011]);
-        assert_eq!(bitter.read_bits_max_computed(0, 00), Some(0));
+        assert_eq!(bitter.read_bits_max_computed(0, 0), Some(0));
 
         let mut bitter = LittleEndianReader::new(&[0xff, 0xff, 0xff, 0xff]);
         assert_eq!(
-            bitter.read_bits_max_computed(31, u32::max_value()),
+            bitter.read_bits_max_computed(31, u64::from(u32::max_value())),
             Some(0x7fff_ffff)
         );
     }
@@ -1563,7 +1587,7 @@ mod tests {
 
         let mut bitter = LittleEndianReader::new(&[0xff, 0xff, 0xff, 0xff]);
         assert_eq!(
-            bitter.read_bits_max_unchecked(u32::max_value()),
+            bitter.read_bits_max_unchecked(u64::from(u32::max_value())),
             0x7fff_ffff
         );
     }
@@ -1591,7 +1615,7 @@ mod tests {
 
         let mut bitter = LittleEndianReader::new(&[0xff, 0xff, 0xff, 0xff]);
         assert_eq!(
-            bitter.read_bits_max_computed_unchecked(31, u32::max_value()),
+            bitter.read_bits_max_computed_unchecked(31, u64::from(u32::max_value())),
             0x7fff_ffff
         );
     }
@@ -1625,7 +1649,7 @@ mod tests {
         assert!(bitter.read_bit().is_some());
         assert!(!bitter.is_empty());
         assert_eq!(bitter.approx_bytes_remaining(), 2);
-        assert!(bitter.read_u32_bits(6).is_some());
+        assert!(bitter.read_bits(6).is_some());
         assert!(!bitter.is_empty());
         assert_eq!(bitter.approx_bytes_remaining(), 2);
         assert!(bitter.read_bit().is_some());
@@ -1634,7 +1658,7 @@ mod tests {
         assert!(bitter.read_bit().is_some());
         assert!(!bitter.is_empty());
         assert_eq!(bitter.approx_bytes_remaining(), 1);
-        assert!(bitter.read_u32_bits(7).is_some());
+        assert!(bitter.read_bits(7).is_some());
         assert!(bitter.is_empty());
         assert_eq!(bitter.approx_bytes_remaining(), 0);
     }
@@ -1705,14 +1729,29 @@ mod tests {
     }
 
     #[test]
+    fn read_bits_64() {
+        let data = 1u64.to_le_bytes();
+        let mut bits = LittleEndianReader::new(&data);
+        assert_eq!(bits.read_bits(64), Some(1));
+    }
+
+    #[test]
+    fn read_bits_52() {
+        let data = [0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa, 0x99, 0x88];
+        let mut bits = LittleEndianReader::new(&data);
+        assert_eq!(bits.read_bits(4), Some(0xf));
+        assert_eq!(bits.read_bits(52), Some(0x99aabbccddeef));
+    }
+
+    #[test]
     fn regression1() {
         let data = vec![0b0000_0010, 0b0011_1111, 0b1011_1100];
         let mut bits = LittleEndianReader::new(data.as_slice());
 
-        assert_eq!(bits.read_u32_bits(3), Some(2));
+        assert_eq!(bits.read_bits(3), Some(2));
         assert_eq!(bits.read_u8(), Some(224));
         assert_eq!(bits.read_bit(), Some(true));
-        assert_eq!(bits.read_u32_bits(13), None);
+        assert_eq!(bits.read_bits(13), None);
     }
 
     #[test]
@@ -1720,7 +1759,7 @@ mod tests {
         let data = vec![2, 63, 63, 2, 63, 2, 0, 0, 0];
         let mut bits = LittleEndianReader::new(data.as_slice());
 
-        assert_eq!(bits.read_u32_bits(3), Some(2));
+        assert_eq!(bits.read_bits(3), Some(2));
         assert_eq!(bits.read_u8(), Some(224));
         assert_eq!(bits.read_u64(), None);
     }
@@ -1735,26 +1774,26 @@ mod be_tests {
         let mut bitter = BigEndianReader::new(&[0b1010_1010, 0b0101_0101]);
         assert!(bitter.has_bits_remaining(16));
         assert_eq!(bitter.bits_remaining(), Some(16));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(1));
         assert!(!bitter.has_bits_remaining(16));
         assert_eq!(bitter.bits_remaining(), Some(15));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
-        assert_eq!(bitter.read_u32_bits(1), Some(0));
-        assert_eq!(bitter.read_u32_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
+        assert_eq!(bitter.read_bits(1), Some(0));
+        assert_eq!(bitter.read_bits(1), Some(1));
 
-        assert_eq!(bitter.read_u32_bits(1), None);
+        assert_eq!(bitter.read_bits(1), None);
     }
 
     #[test]
@@ -1781,15 +1820,15 @@ mod be_tests {
     fn test_u32_bits() {
         let mut bitter =
             BigEndianReader::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
-        assert_eq!(bitter.read_u32_bits(10), Some(0b11_1111_1111));
-        assert_eq!(bitter.read_u32_bits(10), Some(0b01_1101_1110));
-        assert_eq!(bitter.read_u32_bits(10), Some(0b11_1011_1111));
-        assert_eq!(bitter.read_u32_bits(10), Some(0b11_1101_1101));
-        assert_eq!(bitter.read_u32_bits(8), Some(0xee));
-        assert_eq!(bitter.read_u32_bits(8), Some(0xaa));
-        assert_eq!(bitter.read_u32_bits(8), Some(0xbb));
-        assert_eq!(bitter.read_u32_bits(8), Some(0xcc));
-        assert_eq!(bitter.read_u32_bits(8), Some(0xdd));
+        assert_eq!(bitter.read_bits(10), Some(0b11_1111_1111));
+        assert_eq!(bitter.read_bits(10), Some(0b01_1101_1110));
+        assert_eq!(bitter.read_bits(10), Some(0b11_1011_1111));
+        assert_eq!(bitter.read_bits(10), Some(0b11_1101_1101));
+        assert_eq!(bitter.read_bits(8), Some(0xee));
+        assert_eq!(bitter.read_bits(8), Some(0xaa));
+        assert_eq!(bitter.read_bits(8), Some(0xbb));
+        assert_eq!(bitter.read_bits(8), Some(0xcc));
+        assert_eq!(bitter.read_bits(8), Some(0xdd));
         assert_eq!(bitter.read_bit(), None);
     }
 
@@ -1808,29 +1847,29 @@ mod be_tests {
             0b1001_1100,
         ]);
         for _ in 0..16 {
-            assert_eq!(bitter.read_u32_bits(5), Some(28));
+            assert_eq!(bitter.read_bits(5), Some(28));
         }
     }
 
     #[test]
     fn test_bit_unchecked_bits_reads() {
         let mut bitter = BigEndianReader::new(&[0b1010_1010, 0b0101_0101]);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 0);
-        assert_eq!(bitter.read_u32_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
+        assert_eq!(bitter.read_bits_unchecked(1), 0);
+        assert_eq!(bitter.read_bits_unchecked(1), 1);
 
         assert_eq!(bitter.read_bit(), None);
     }
@@ -1855,7 +1894,7 @@ mod be_tests {
     #[test]
     fn test_u32_bit_read() {
         let mut bitter = BigEndianReader::new(&[0xff, 0x00, 0xab, 0xcd]);
-        assert_eq!(bitter.read_u32_bits(32), Some(0xff00abcd));
+        assert_eq!(bitter.read_bits(32), Some(0xff00abcd));
     }
 
     #[test]
@@ -1908,5 +1947,20 @@ mod be_tests {
         let mut bits = BigEndianReader::new(data.as_slice());
         assert_eq!(bits.read_u64_unchecked(), 1);
         assert_eq!(bits.read_u64_unchecked(), 0);
+    }
+
+    #[test]
+    fn read_bits_64() {
+        let data = 1u64.to_be_bytes();
+        let mut bits = BigEndianReader::new(&data);
+        assert_eq!(bits.read_bits(64), Some(1));
+    }
+
+    #[test]
+    fn read_bits_52() {
+        let data = [0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa, 0x99, 0x88];
+        let mut bits = BigEndianReader::new(&data);
+        assert_eq!(bits.read_bits(4), Some(0xf));
+        assert_eq!(bits.read_bits(52), Some(0xfeeddccbbaa99));
     }
 }

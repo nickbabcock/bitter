@@ -102,6 +102,6 @@ jobs:
       if: matrix.build == 'nightly'
       run: |
         cargo install cargo-fuzz
-        cargo fuzz build fuzz_bitter
+        cargo fuzz build fuzz_endian
         cargo fuzz build fuzz_simple
 
