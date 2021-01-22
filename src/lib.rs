@@ -500,6 +500,20 @@ const fn bit_mask(bits: usize) -> u64 {
     (1 << bits) - 1
 }
 
+/// Returns value shifted left by the given bits. If the
+/// the number of bits exceeds 63 then 0 is returned
+#[inline]
+fn shl_mask(val: u64, shift: usize) -> u64 {
+    if shift == 64 { 0 } else { val << shift }
+}
+
+/// Returns value shifted right by the given bits. If the
+/// the number of bits exceeds 63 then 0 is returned
+#[inline]
+fn shr_mask(val: u64, shift: usize) -> u64 {
+    if shift == 64 { 0 } else { val >> shift }
+}
+
 const BYTE_WIDTH: usize = core::mem::size_of::<u64>();
 const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 
@@ -833,12 +847,7 @@ impl<'a> LittleEndianBits<'a> {
             if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {
                 None
             } else {
-                let pos_mask = self.pos & 63;
-                let little = self.current_val >> pos_mask;
-                let no_overflow = (self.pos == pos_mask) as i64;
-                let no_overflow = unsafe { std::mem::transmute::<i64, u64>(-no_overflow) };
-                let little = no_overflow & little;
-
+                let little = shr_mask(self.current_val, self.pos);
                 self.data = new_data;
                 self.current_val = self.read();
                 let big = (self.current_val & bit_mask(left)) << (bts - left);
@@ -865,12 +874,7 @@ impl<'a> LittleEndianBits<'a> {
             if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
                 None
             } else {
-                let pos_mask = self.pos & 63;
-                let little = self.current_val >> pos_mask;
-                let no_overflow = (self.pos == pos_mask) as i64;
-                let no_overflow = unsafe { std::mem::transmute::<i64, u64>(-no_overflow) };
-                let little = no_overflow & little;
-
+                let little = shr_mask(self.current_val, self.pos);
                 self.data = new_data;
                 self.current_val = self.read();
                 let big = self.current_val << (bts - self.pos);
@@ -885,41 +889,24 @@ impl<'a> LittleEndianBits<'a> {
     fn read_u64_unchecked(&mut self) -> u64 {
         // While reading 64bit we can take advantage of an optimization trick not available to
         // other reads as 64bits is the same as our cache size
-        if self.pos == 0 {
-            let result = self.current_val;
-            self.data = &self.data[BYTE_WIDTH..];
-            self.current_val = self.read();
-            result
-        } else {
-            let bts = core::mem::size_of::<u64>() * 8;
-            let pos_mask = self.pos & 63;
-            let little = self.current_val >> pos_mask;
-            let no_overflow = (self.pos == pos_mask) as i64;
-            let no_overflow = unsafe { std::mem::transmute::<i64, u64>(-no_overflow) };
-            let little = no_overflow & little;
-
-            self.data = &self.data[BYTE_WIDTH..];
-            self.current_val = self.read();
-            let big = self.current_val << (bts - self.pos);
-            little + big
-        }
+        let bts = core::mem::size_of::<u64>() * 8;
+        let little = shr_mask(self.current_val, self.pos);
+        self.data = &self.data[BYTE_WIDTH..];
+        self.current_val = self.read();
+        let big = shl_mask(self.current_val, bts - self.pos);
+        little + big
     }
 
     #[inline]
     fn read_bits_unchecked(&mut self, bits: i32) -> u32 {
         let bts = bits as usize;
         let new_pos = self.pos + bts;
-        if new_pos < BIT_WIDTH {
+        if new_pos <= BIT_WIDTH {
             let res = (self.current_val >> self.pos) & bit_mask(bts);
             self.pos = new_pos;
             res as u32
         } else {
-            let pos_mask = self.pos & 63;
-            let little = self.current_val >> pos_mask;
-            let no_overflow = (self.pos == pos_mask) as i64;
-            let no_overflow = unsafe { std::mem::transmute::<i64, u64>(-no_overflow) };
-            let little = no_overflow & little;
-
+            let little = shr_mask(self.current_val, self.pos);
             self.data = &self.data[BYTE_WIDTH..];
             self.current_val = self.read();
             let left = new_pos - BIT_WIDTH;
@@ -971,12 +958,7 @@ impl<'a> BigEndianBits<'a> {
             if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
                 None
             } else {
-                let pos_mask = self.pos & 63;
-                let big = self.current_val << pos_mask;
-                let no_overflow = (self.pos == pos_mask) as i64;
-                let no_overflow = unsafe { std::mem::transmute::<i64, u64>(-no_overflow) };
-                let big = no_overflow & big;
-
+                let big = shl_mask(self.current_val, self.pos);
                 self.data = new_data;
                 self.current_val = self.read();
                 let little = self.current_val >> (bts - self.pos);
@@ -991,24 +973,12 @@ impl<'a> BigEndianBits<'a> {
     fn read_u64_unchecked(&mut self) -> u64 {
         // While reading 64bit we can take advantage of an optimization trick not available to
         // other reads as 64bits is the same as our cache size
-        if self.pos == 0 {
-            let result = self.current_val;
-            self.data = &self.data[BYTE_WIDTH..];
-            self.current_val = self.read();
-            result
-        } else {
-            let bts = core::mem::size_of::<u64>() * 8;
-            let pos_mask = self.pos & 63;
-            let big = self.current_val << pos_mask;
-            let no_overflow = (self.pos == pos_mask) as i64;
-            let no_overflow = unsafe { std::mem::transmute::<i64, u64>(-no_overflow) };
-            let big = no_overflow & big;
-
-            self.data = &self.data[BYTE_WIDTH..];
-            self.current_val = self.read();
-            let little = self.current_val >> (bts - self.pos);
-            little + big
-        }
+        let big = shl_mask(self.current_val, self.pos);
+        self.data = &self.data[BYTE_WIDTH..];
+        self.current_val = self.read();
+        let bts = core::mem::size_of::<u64>() * 8;
+        let little = shr_mask(self.current_val, bts - self.pos);
+        little + big
     }
 
     #[inline]
