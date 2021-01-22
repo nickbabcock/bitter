@@ -200,33 +200,33 @@ fn read_u64_eq(x: u64) -> bool {
 }
 
 #[quickcheck]
-fn read_u16_unchecked_eq(data: Vec<u8>) -> bool {
-    let mut lebits = LittleEndianReader::new(data.as_slice());
-    let mut bebits = BigEndianReader::new(data.as_slice());
+fn read_u16_unchecked_eq(x: u16) -> bool {
+    let le_data = x.to_le_bytes();
+    let be_data = x.to_be_bytes();
+    let mut lebits = LittleEndianReader::new(&le_data);
+    let mut bebits = BigEndianReader::new(&be_data);
 
-    lebits.has_bits_remaining(16) == bebits.has_bits_remaining(16)
-        && (!lebits.has_bits_remaining(16)
-            || lebits.read_u16_unchecked().to_be() == bebits.read_u16_unchecked())
+    lebits.read_u16_unchecked() == bebits.read_u16_unchecked()
 }
 
 #[quickcheck]
-fn read_u32_unchecked_eq(data: Vec<u8>) -> bool {
-    let mut lebits = LittleEndianReader::new(data.as_slice());
-    let mut bebits = BigEndianReader::new(data.as_slice());
+fn read_u32_unchecked_eq(x: u32) -> bool {
+    let le_data = x.to_le_bytes();
+    let be_data = x.to_be_bytes();
+    let mut lebits = LittleEndianReader::new(&le_data);
+    let mut bebits = BigEndianReader::new(&be_data);
 
-    lebits.has_bits_remaining(32) == bebits.has_bits_remaining(32)
-        && (!lebits.has_bits_remaining(32)
-            || lebits.read_u32_unchecked().to_be() == bebits.read_u32_unchecked())
+    lebits.read_u32_unchecked() == bebits.read_u32_unchecked()
 }
 
 #[quickcheck]
-fn read_u64_unchecked_eq(data: Vec<u8>) -> bool {
-    let mut lebits = LittleEndianReader::new(data.as_slice());
-    let mut bebits = BigEndianReader::new(data.as_slice());
+fn read_u64_unchecked_eq(x: u64) -> bool {
+    let le_data = x.to_le_bytes();
+    let be_data = x.to_be_bytes();
+    let mut lebits = LittleEndianReader::new(&le_data);
+    let mut bebits = BigEndianReader::new(&be_data);
 
-    lebits.has_bits_remaining(64) == bebits.has_bits_remaining(64)
-        && (!lebits.has_bits_remaining(64)
-            || lebits.read_u64_unchecked().to_be() == bebits.read_u64_unchecked())
+    lebits.read_u64_unchecked() == bebits.read_u64_unchecked()
 }
 
 #[quickcheck]
