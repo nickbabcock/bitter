@@ -5,7 +5,7 @@ extern crate criterion;
 extern crate nom;
 
 use bitreader::BitReader as BR;
-use bitstream_io::{BitReader as bio_br, LE};
+use bitstream_io::{BitRead, BitReader as bio_br, LittleEndian};
 use bitter::{BitReader, LittleEndianReader};
 use criterion::{black_box, Benchmark, Criterion, ParameterizedBenchmark, Throughput};
 use std::io::Cursor;
@@ -48,7 +48,7 @@ fn bitting(c: &mut Criterion) {
         b.iter(|| {
             let mut cursor = Cursor::new(&DATA[..]);
             {
-                let mut bits = bio_br::<LE>::new(&mut cursor);
+                let mut bits = bio_br::endian(&mut cursor, LittleEndian);
                 for _ in 0..ITER {
                     black_box(bits.read::<u32>(*param as u32).unwrap());
                 }

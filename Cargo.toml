@@ -26,7 +26,7 @@ harness = false
 [dev-dependencies]
 criterion = "0.3"
 bitreader = "0.3"
-bitstream-io = "0.6"
-nom = "5"
+bitstream-io = "1"
+nom = "6"
 quickcheck = "1"
 quickcheck_macros = "1"
