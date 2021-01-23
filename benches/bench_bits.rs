@@ -15,12 +15,13 @@ static DATA: [u8; 0x10_000] = [0; 0x10_000];
 const ITER: u64 = 1000;
 
 fn bitting(c: &mut Criterion) {
-    let parameters: Vec<i32> = (1..33).collect();
+    let parameters: Vec<i32> = (1..64).collect();
     let bench = ParameterizedBenchmark::new(
         "bitter-checked",
         |b, param| {
             b.iter(|| {
                 let mut bitter = LittleEndianReader::new(&DATA[..]);
+                bitter.read_bit();
                 for _ in 0..ITER {
                     black_box(bitter.read_bits(*param));
                 }
@@ -31,6 +32,7 @@ fn bitting(c: &mut Criterion) {
     .with_function("bitter-unchecked", |b, param| {
         b.iter(|| {
             let mut bitter = LittleEndianReader::new(&DATA[..]);
+            bitter.read_bit();
             for _ in 0..ITER {
                 black_box(bitter.read_bits_unchecked(*param));
             }
@@ -39,8 +41,9 @@ fn bitting(c: &mut Criterion) {
     .with_function("bitreader", |b, param| {
         b.iter(|| {
             let mut bitter = BR::new(&DATA);
+            bitter.read_u32(1).unwrap();
             for _ in 0..ITER {
-                black_box(bitter.read_u32(*param as u8).unwrap());
+                black_box(bitter.read_u64(*param as u8).unwrap());
             }
         })
     })
@@ -49,8 +52,9 @@ fn bitting(c: &mut Criterion) {
             let mut cursor = Cursor::new(&DATA[..]);
             {
                 let mut bits = bio_br::endian(&mut cursor, LittleEndian);
+                bits.read_bit().unwrap();
                 for _ in 0..ITER {
-                    black_box(bits.read::<u32>(*param as u32).unwrap());
+                    black_box(bits.read::<u64>(*param as u32).unwrap());
                 }
             }
         })
@@ -58,7 +62,7 @@ fn bitting(c: &mut Criterion) {
     .with_function("nom", |b, param| {
         b.iter(|| {
             let mut d = &DATA[..];
-            let mut pos = 0;
+            let mut pos = 1;
             for _ in 0..ITER {
                 let ((left, new_pos), _): ((&[u8], usize), u32) =
                     take_bits!((&d[..], pos), *param as usize).unwrap();

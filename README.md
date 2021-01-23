@@ -86,7 +86,8 @@ Benchmarks are ran with the following command:
 ```
 cargo clean
 RUSTFLAGS="-C target-cpu=native" cargo bench -- bit-reading
-find ./target -wholename "*/new/raw.csv" -print0 | xargs -0 xsv cat rows > assets/benchmark-data.csv
+find ./target -path "*bit-reading*" -wholename "*/new/raw.csv" -print0 \
+  | xargs -0 xsv cat rows > assets/benchmark-data.csv
 ```
 
 And can be analyzed with the R script found in the assets directory. Keep in mind, benchmarks will vary by machine
@@ -95,15 +96,7 @@ And can be analyzed with the R script found in the assets directory. Keep in min
 
 Takeaways from the above chart:
 
-* Bitter unchecked APIs yield the greatest throughput across all read sizes
-* Bitter checked APIs cost roughly half the throughput of bitter unchecked APIs
-* While the first version of this library's unchecked APIs (bitterv1) are good, the current version has improved the checked versions to be close behind
-* Nom performs very respectively for a library not specializing in bit reads
+* Bitter unchecked APIs yield the greatest throughput (reads per second)
+* Bitter checked APIs cost less than half the throughput of bitter unchecked APIs
 * Nom has a small but appreciable throughput with an increase in read sizes
 * Other libraries should not be considered for performance sensitive areas
-
-Since the chart lacks quotable numbers and is too dense to make an interpretation for small payloads, here is a table (for power of 2 read sizes).
-
-![bench-bit-table.png](assets/bench-bit-table.png)
-
-Interpretations remain the same, but now one can compare performance numbers in a quantifiable manner.
