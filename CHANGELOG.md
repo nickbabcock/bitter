@@ -1,3 +1,118 @@
+## 0.5.0 - 2021-01-23
+
+This is a big and breaking release but hopefully at the end of the changelog you'll be in agreement that the improvements are very much worth it. I'm confident that the current API will hold up much better and I'm committed to releasing 1.0 if no unforseen flaws are encountered.
+
+### BigEndian and NativeEndian APIs
+
+- `BigGet` has been renamed to `LittleEndianReader` to better reflect its name in light of:
+- Introduction of `BigEndianReader` and `NativeEndianReader` alias
+- A trait, `BitReader` that is the new home for consuming bits with `read_u8`
+
+Instead of writing:
+
+```rust
+use bitter::BitGet;
+let mut bitter = BitGet::new(&[0xff, 0x04]);
+assert_eq!(bitter.read_bit(), Some(true));
+assert_eq!(bitter.read_u8(), Some(0x7f));
+```
+
+One will now write:
+
+```rust
+use bitter::{BitReader, LittleEndianReader};
+let mut bitter = LittleEndianReader::new(&[0xff, 0x04]);
+assert_eq!(bitter.read_bit(), Some(true));
+assert_eq!(bitter.read_u8(), Some(0x7f));
+```
+
+### Support Bit Reads up to 64 bits
+
+Instead of
+
+```rust
+assert_eq!(bitter.read_u32_bits(7), Some(0x02));
+```
+
+The `read_u32_bits` family has been replaced with:
+
+```rust
+assert_eq!(bitter.read_bits(7), Some(0x02));
+```
+
+The new API:
+
+- can process process up to 64 bits instead of 32 bits
+- comes at no performance cost for 64bit systems
+
+### Support Two's Complement for Arbitrary Bit Widths
+
+The following functions have been removed:
+
+```
+read_i32_bits
+read_i32_bits_unchecked
+```
+
+The use cases for these functions had been extremely limited.
+
+It is more intuitive that when the user requests 3 bits that are
+signed that these three bits are treated as 3 bits of two's complement,
+meaning that the top bit would make the result negative. To give an
+example, if the next three bits are encountered:
+
+```
+111
+```
+
+Then the result should be -1. Arbitrarily wide two's complement support
+had not been possible until today. This functionality is now exposed in
+two new functions:
+
+```
+read_signed_bits
+read_signed_bits_unchecked
+```
+
+### Rework `read_bytes` to Accept Mutable Buffer
+
+By moving `read_bytes` to accept a mutable buffer:
+
+- Remove all allocations (hidden or otherwise) from the API
+- Increase performance in both aligned and unaligned scenarios
+
+Instead of
+
+```rust
+use bitter::BitGet;
+let mut bitter = BitGet::new(&[0b1010_1010, 0b0101_0101]);
+assert_eq!(
+    bitter.read_bytes(2).map(|x| x.into_owned()),
+    Some(vec![0b1010_1010, 0b0101_0101])
+)
+```
+
+write:
+
+```rust
+use bitter::{BitReader, LittleEndianReader};
+let mut buf = [0u8; 2];
+let mut bitter = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101]);
+assert!(bitter.read_bytes(&mut buf));
+assert_eq!(&buf, &[0b1010_1010, 0b0101_0101]);
+```
+
+The new API should be more reminiscent of the Read trait's read method,
+which also takes a mutable buffer, but instead of returning a result of
+bytes read we know that either we'll fill the entire buffer or there
+isn't enough data.
+
+### Other Improvements
+
+- Enable `no_std` builds
+- Add `read_f64` and `read_f64_unchecked`
+- Bump edition to 2018
+
 ## 0.4.1 - 2020-11-21
 
 Maintenance release that trims down the number of files in crate so that the download size is smaller
