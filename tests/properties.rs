@@ -259,7 +259,10 @@ fn read_f32_eq(bits: u32) -> bool {
     let mut lebits = LittleEndianReader::new(&le_data);
     let mut bebits = BigEndianReader::new(&be_data);
 
-    lebits.read_f32() == bebits.read_f32()
+    match (lebits.read_f32(), bebits.read_f32()) {
+        (Some(y), Some(x)) => (x.is_nan() && y.is_nan()) || x == y,
+        _ => false,
+    }
 }
 
 #[quickcheck]
@@ -270,7 +273,8 @@ fn read_f32_unchecked_eq(bits: u32) -> bool {
     let mut lebits = LittleEndianReader::new(&le_data);
     let mut bebits = BigEndianReader::new(&be_data);
 
-    lebits.read_f32_unchecked() == bebits.read_f32_unchecked()
+    let v = lebits.read_f32_unchecked();
+    v.is_nan() || v == bebits.read_f32_unchecked()
 }
 
 #[quickcheck]
@@ -281,7 +285,10 @@ fn read_f64_eq(bits: u64) -> bool {
     let mut lebits = LittleEndianReader::new(&le_data);
     let mut bebits = BigEndianReader::new(&be_data);
 
-    lebits.read_f64() == bebits.read_f64()
+    match (lebits.read_f64(), bebits.read_f64()) {
+        (Some(y), Some(x)) => (x.is_nan() && y.is_nan()) || x == y,
+        _ => false,
+    }
 }
 
 #[quickcheck]
@@ -292,7 +299,8 @@ fn read_f64_unchecked_eq(bits: u64) -> bool {
     let mut lebits = LittleEndianReader::new(&le_data);
     let mut bebits = BigEndianReader::new(&be_data);
 
-    lebits.read_f64_unchecked() == bebits.read_f64_unchecked()
+    let v = lebits.read_f64_unchecked();
+    v.is_nan() || v == bebits.read_f64_unchecked()
 }
 
 #[quickcheck]
