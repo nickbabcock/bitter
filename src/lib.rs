@@ -1094,7 +1094,7 @@ impl<'a> BigEndianReader<'a> {
                 None
             } else {
                 let mask = bit_mask_zero(BIT_WIDTH - self.pos);
-                let big = (self.current_val & mask) << left;
+                let big = shl_mask(self.current_val & mask, left);
                 self.data = new_data;
                 self.current_val = self.read();
                 let little = self.current_val >> (BIT_WIDTH - left);
@@ -1117,7 +1117,7 @@ impl<'a> BigEndianReader<'a> {
         } else {
             let mask = bit_mask_zero(BIT_WIDTH - self.pos);
             let left = new_pos - BIT_WIDTH;
-            let big = (self.current_val & mask) << left;
+            let big = shl_mask(self.current_val & mask, left);
             self.data = &self.data[BYTE_WIDTH..];
             self.current_val = self.read();
             let little = self.current_val >> (BIT_WIDTH - left);
@@ -1959,6 +1959,16 @@ mod be_tests {
     }
 
     #[test]
+    fn back_to_back_be_64_bits() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(0u64.to_be_bytes()));
+        data.extend_from_slice(&(1u64.to_be_bytes()));
+        let mut bits = BigEndianReader::new(data.as_slice());
+        assert_eq!(bits.read_bits(64), Some(0));
+        assert_eq!(bits.read_bits(64), Some(1));
+    }
+
+    #[test]
     fn pushed_be_u64() {
         let mut data = Vec::new();
         data.extend_from_slice(&(0u64.to_be_bytes()));
@@ -1988,6 +1998,16 @@ mod be_tests {
         let mut bits = BigEndianReader::new(data.as_slice());
         assert_eq!(bits.read_u64_unchecked(), 1);
         assert_eq!(bits.read_u64_unchecked(), 0);
+    }
+
+    #[test]
+    fn back_to_back_be_unchecked_64_bits() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(0u64.to_be_bytes()));
+        data.extend_from_slice(&(1u64.to_be_bytes()));
+        let mut bits = BigEndianReader::new(data.as_slice());
+        assert_eq!(bits.read_bits_unchecked(64), 0);
+        assert_eq!(bits.read_bits_unchecked(64), 1);
     }
 
     #[test]
