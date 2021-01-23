@@ -183,7 +183,7 @@ pub trait BitReader {
     /// ```
     fn read_f64(&mut self) -> Option<f64>;
 
-    /// Reads an arbitrary number of bits from 1 to 32 (inclusive)
+    /// Reads an arbitrary number of bits from 1 to 64 (inclusive)
     /// and returns the unsigned result
     ///
     /// ```rust
@@ -193,16 +193,34 @@ pub trait BitReader {
     /// ```
     fn read_bits(&mut self, bits: i32) -> Option<u64>;
 
-    /// Reads an arbitrary number of bits from 1 to 32 (inclusive)
-    /// and returns the signed result.
+    /// Reads an arbitrary number of bits from 1 to 64 (inclusive)
+    /// and returns the signed result. If the most significant bit
+    /// is enabled, the result will be negative. This can be somewhat
+    /// counterintuitive so see the examples
     ///
     /// ```rust
     /// use bitter::{BitReader, BigEndianReader};
-    /// let mut bitter = BigEndianReader::new(&[0xff, 0x00, 0xab, 0xcd]);
-    /// let result = i32::from_be_bytes([0xff, 0x00, 0xab, 0xcd]);
-    /// assert_eq!(bitter.read_i32_bits(32), Some(result));
+    /// let mut bitter = BigEndianReader::new(&[0xfa, 0x93]);
+    /// assert_eq!(bitter.read_signed_bits(4), Some(-1));
+    /// assert_eq!(bitter.read_signed_bits(4), Some(-6));
+    /// assert_eq!(bitter.read_signed_bits(4), Some(-7));
+    /// assert_eq!(bitter.read_signed_bits(4), Some(3));
     /// ```
-    fn read_i32_bits(&mut self, bits: i32) -> Option<i32>;
+    ///
+    /// To think of it another way, reading the number of bits equivalent
+    /// to a builtin type (i8, i16, etc), will always equal its associated
+    /// ergonomic equivalent when casted.
+    ///
+    /// ```rust
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let mut bitter = BigEndianReader::new(&[0xff]);
+    /// let mut bitter2 = BigEndianReader::new(&[0xff]);
+    /// assert_eq!(
+    ///     bitter.read_signed_bits(8).map(|x| x as i8),
+    ///     bitter2.read_i8()
+    /// );
+    /// ```
+    fn read_signed_bits(&mut self, bits: i32) -> Option<i64>;
 
     /// If the next bit is available and on, decode the next chunk of data (which can return None).
     /// The return value can be one of the following:
@@ -358,7 +376,7 @@ pub trait BitReader {
     /// ```
     fn read_f64_unchecked(&mut self) -> f64;
 
-    /// Reads an arbitrary number of bits from 1 to 32 (inclusive)
+    /// Reads an arbitrary number of bits from 1 to 64 (inclusive)
     /// and returns the unsigned result
     ///
     /// ```rust
@@ -368,16 +386,17 @@ pub trait BitReader {
     /// ```
     fn read_bits_unchecked(&mut self, bits: i32) -> u64;
 
-    /// Reads an arbitrary number of bits from 1 to 32 (inclusive)
-    /// and returns the signed result.
+    /// Reads an arbitrary number of bits from 1 to 64 (inclusive)
+    /// and returns the signed result. See the discussion for the
+    /// checked version of this API.
     ///
     /// ```rust
     /// use bitter::{BitReader, BigEndianReader};
     /// let mut bitter = BigEndianReader::new(&[0xff, 0x00, 0xab, 0xcd]);
-    /// let result = i32::from_be_bytes([0xff, 0x00, 0xab, 0xcd]);
-    /// assert_eq!(bitter.read_i32_bits_unchecked(32), result);
+    /// let result = i64::from(i32::from_be_bytes([0xff, 0x00, 0xab, 0xcd]));
+    /// assert_eq!(bitter.read_signed_bits_unchecked(32), result);
     /// ```
-    fn read_i32_bits_unchecked(&mut self, bits: i32) -> i32;
+    fn read_signed_bits_unchecked(&mut self, bits: i32) -> i64;
 
     /// If the next bit is available and on, decode the next chunk of data.  The return value can
     /// be one of the following:
@@ -661,13 +680,34 @@ macro_rules! generate_bitter_end {
             }
 
             #[inline]
-            fn read_i32_bits_unchecked(&mut self, bits: i32) -> i32 {
-                self.read_bits_unchecked(bits) as i32
+            fn read_signed_bits_unchecked(&mut self, bits: i32) -> i64 {
+                let bts = bits as usize;
+                if bts == BIT_WIDTH {
+                    self.read_i64_unchecked()
+                } else {
+                    let x = self.read_bits_unchecked(bits);
+                    if x.leading_zeros() == (BIT_WIDTH - bts) as u32 {
+                        (x as i64) - (bit_mask(bts) + 1) as i64
+                    } else {
+                        x as i64
+                    }
+                }
             }
 
             #[inline]
-            fn read_i32_bits(&mut self, bits: i32) -> Option<i32> {
-                self.read_bits(bits).map(|x| x as i32)
+            fn read_signed_bits(&mut self, bits: i32) -> Option<i64> {
+                let bts = bits as usize;
+                if bts == BIT_WIDTH {
+                    self.read_i64()
+                } else {
+                    self.read_bits(bits).map(|x| {
+                        if x.leading_zeros() == (BIT_WIDTH - bts) as u32 {
+                            (x as i64) - (bit_mask(bts) + 1) as i64
+                        } else {
+                            x as i64
+                        }
+                    })
+                }
             }
 
             #[inline]
@@ -1454,18 +1494,18 @@ mod tests {
     }
 
     #[test]
-    fn test_i32_bits_unchecked() {
+    fn test_signed_bits_unchecked() {
         let mut bitter =
             LittleEndianReader::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd]);
-        assert_eq!(bitter.read_i32_bits_unchecked(10), 0x1ff);
-        assert_eq!(bitter.read_i32_bits_unchecked(10), 0x3b7);
-        assert_eq!(bitter.read_i32_bits_unchecked(10), 0x3fe);
-        assert_eq!(bitter.read_i32_bits_unchecked(10), 0x377);
-        assert_eq!(bitter.read_i32_bits_unchecked(8), 0xee);
-        assert_eq!(bitter.read_i32_bits_unchecked(8), 0xaa);
-        assert_eq!(bitter.read_i32_bits_unchecked(8), 0xbb);
-        assert_eq!(bitter.read_i32_bits_unchecked(8), 0xcc);
-        assert_eq!(bitter.read_i32_bits_unchecked(8), 0xdd);
+        assert_eq!(bitter.read_signed_bits_unchecked(10), 0x1ff);
+        assert_eq!(bitter.read_signed_bits_unchecked(10), -73);
+        assert_eq!(bitter.read_signed_bits_unchecked(10), -2);
+        assert_eq!(bitter.read_signed_bits_unchecked(10), -137);
+        assert_eq!(bitter.read_signed_bits_unchecked(8), -18);
+        assert_eq!(bitter.read_signed_bits_unchecked(8), -86);
+        assert_eq!(bitter.read_signed_bits_unchecked(8), -69);
+        assert_eq!(bitter.read_signed_bits_unchecked(8), -52);
+        assert_eq!(bitter.read_signed_bits_unchecked(8), -35);
         assert_eq!(bitter.read_bit(), None);
     }
 
@@ -1481,13 +1521,14 @@ mod tests {
     }
 
     #[test]
-    fn test_i32_bits2() {
+    fn test_signed_bits2() {
         let mut bitter = LittleEndianReader::new(&[
             0x9c, 0x73, 0xce, 0x39, 0xe7, 0x9c, 0x73, 0xce, 0x39, 0xe7, 0x9c, 0x73, 0xce, 0x39,
             0xe7,
         ]);
+
         for _ in 0..10 {
-            assert_eq!(bitter.read_i32_bits(5), Some(28));
+            assert_eq!(bitter.read_signed_bits(5), Some(-4));
         }
     }
 
@@ -1962,5 +2003,27 @@ mod be_tests {
         let mut bits = BigEndianReader::new(&data);
         assert_eq!(bits.read_bits(4), Some(0xf));
         assert_eq!(bits.read_bits(52), Some(0xfeeddccbbaa99));
+    }
+
+    #[test]
+    fn test_signed_bits() {
+        let mut bitter = BigEndianReader::new(&[
+            0xe7, 0x39, 0xce, 0x73, 0x9C, 0xE7, 0x39, 0xC0
+        ]);
+
+        for _ in 0..12 {
+            assert_eq!(bitter.read_signed_bits(5), Some(-4));
+        }
+    }
+
+    #[test]
+    fn test_signed_bits_unchecked() {
+        let mut bitter = BigEndianReader::new(&[
+            0xe7, 0x39, 0xce, 0x73, 0x9C, 0xE7, 0x39, 0xC0
+        ]);
+
+        for _ in 0..12 {
+            assert_eq!(bitter.read_signed_bits_unchecked(5), -4);
+        }
     }
 }
