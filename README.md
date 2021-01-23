@@ -9,8 +9,8 @@ Bitter takes a slice of byte data and reads bits in a desired endian format plat
 ## Features
 
  - ✔ support for little endian, big endian, and native endian formats
- - ✔ request an arbitrary amount of bits (up to 32 bits)
- - ✔ ergonomic requests for common data types (including `u64` / `i64`)
+ - ✔ request an arbitrary amount of bits (up to 64 bits)
+ - ✔ ergonomic requests for common data types (eg: `u8` ... `u64`, `f32`, etc)
  - ✔ > 5 GB/s throughput when reading large number of bits
  - ✔ > 1 GB/s throughput when reading single digit sized chunks of bits
  - ✔ two APIs: one for safety and one for speed
@@ -25,7 +25,7 @@ use bitter::{BitReader, LittleEndianReader};
 let mut bitter = LittleEndianReader::new(&[0xff, 0x04]);
 assert_eq!(bitter.read_bit(), Some(true));
 assert_eq!(bitter.read_u8(), Some(0x7f));
-assert_eq!(bitter.read_u32_bits(7), Some(0x02));
+assert_eq!(bitter.read_bits(7), Some(0x02));
 ```
 
 There are two main APIs available: checked and unchecked functions. The above example uses the checked API as return types are options to designate that there wasn't sufficient data to complete the read. Unchecked APIs will exhibit
@@ -44,7 +44,7 @@ let mut bitter = LittleEndianReader::new(&[0xff, 0x04]);
 if bitter.has_bits_remaining(16) {
     assert_eq!(bitter.read_bit_unchecked(), true);
     assert_eq!(bitter.read_u8_unchecked(), 0x7f);
-    assert_eq!(bitter.read_u32_bits_unchecked(7), 0x02);
+    assert_eq!(bitter.read_bits_unchecked(7), 0x02);
 }
 ```
 

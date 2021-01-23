@@ -23,7 +23,7 @@ fn bitting(c: &mut Criterion) {
             b.iter(|| {
                 let mut bitter = LittleEndianReader::new(&DATA[..]);
                 for _ in 0..ITER {
-                    black_box(bitter.read_u32_bits(*param));
+                    black_box(bitter.read_bits(*param));
                 }
             })
         },
@@ -33,7 +33,7 @@ fn bitting(c: &mut Criterion) {
         b.iter(|| {
             let mut bitter = LittleEndianReader::new(&DATA[..]);
             for _ in 0..ITER {
-                black_box(bitter.read_u32_bits_unchecked(*param));
+                black_box(bitter.read_bits_unchecked(*param));
             }
         })
     })
@@ -99,14 +99,14 @@ fn eight_bits(c: &mut Criterion) {
         "bitter_arbitrary_unchecked",
         ben!(
             LittleEndianReader::new(&DATA),
-            |x: &mut LittleEndianReader<'_>| x.read_u32_bits_unchecked(8)
+            |x: &mut LittleEndianReader<'_>| x.read_bits_unchecked(8)
         ),
     )
     .with_function(
         "bitter_arbitrary_checked",
         ben!(
             LittleEndianReader::new(&DATA),
-            |x: &mut LittleEndianReader<'_>| x.read_u32_bits(8).unwrap()
+            |x: &mut LittleEndianReader<'_>| x.read_bits(8).unwrap()
         ),
     )
     .with_function(
