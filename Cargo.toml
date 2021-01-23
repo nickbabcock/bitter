@@ -30,7 +30,3 @@ bitstream-io = "0.6"
 nom = "5"
 quickcheck = "0.8"
 quickcheck_macros = "0.8"
-
-[dev-dependencies.bitterv1]
-package = "bitter"
-version = "=0.1.0"
