@@ -83,7 +83,7 @@ The reason why someone would choose bitter is speed.
 
 Benchmarks are ran with the following command:
 
-```
+```bash
 cargo clean
 RUSTFLAGS="-C target-cpu=native" cargo bench -- bit-reading
 find ./target -path "*bit-reading*" -wholename "*/new/raw.csv" -print0 \
