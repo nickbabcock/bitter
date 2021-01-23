@@ -33,7 +33,7 @@ ggplot(df, aes(value, latency, color = fn)) +
   stat_summary(aes(linetype = line), fun = mean, geom="line", size = 1.2) +
   scale_y_continuous(breaks = pretty_breaks(10)) +
   scale_x_continuous(limit = c(1, NA), breaks = pretty_breaks(12)) +
-  labs(title = "Comparison Rust Bit Readers",
+  labs(title = "Rust Bit Readers Performance Comparison",
        subtitle = "Performance measured in reads per nanosecond (higher is better)",
        caption = "Bitter implementations marked with solid lines",
        col = "Bit reader",

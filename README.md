@@ -98,5 +98,4 @@ Takeaways from the above chart:
 
 * Bitter unchecked APIs yield the greatest throughput (reads per second)
 * Bitter checked APIs cost less than half the throughput of bitter unchecked APIs
-* Nom has a small but appreciable throughput with an increase in read sizes
-* Other libraries should not be considered for performance sensitive areas
+* Bitter is 2x-6x faster than other libraries depending on the read size
