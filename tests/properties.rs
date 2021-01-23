@@ -372,10 +372,10 @@ fn read_le_signed_bits(a: i8, b: i16, c: i32, d: i64) -> bool {
     data.extend_from_slice(&(d.to_le_bytes()));
     let mut lebits = LittleEndianReader::new(data.as_slice());
 
-    lebits.read_signed_bits(8).map(|x| x as i8) == Some(a) &&
-    lebits.read_signed_bits(16).map(|x| x as i16) == Some(b) &&
-    lebits.read_signed_bits(32).map(|x| x as i32) == Some(c) &&
-    lebits.read_signed_bits(64).map(|x| x as i64) == Some(d)
+    lebits.read_signed_bits(8).map(|x| x as i8) == Some(a)
+        && lebits.read_signed_bits(16).map(|x| x as i16) == Some(b)
+        && lebits.read_signed_bits(32).map(|x| x as i32) == Some(c)
+        && lebits.read_signed_bits(64).map(|x| x as i64) == Some(d)
 }
 
 #[quickcheck]
@@ -387,10 +387,10 @@ fn read_le_signed_unchecked_bits(a: i8, b: i16, c: i32, d: i64) -> bool {
     data.extend_from_slice(&(d.to_le_bytes()));
     let mut lebits = LittleEndianReader::new(data.as_slice());
 
-    lebits.read_signed_bits_unchecked(8) as i8 == a &&
-    lebits.read_signed_bits_unchecked(16) as i16 == b &&
-    lebits.read_signed_bits_unchecked(32) as i32 == c &&
-    lebits.read_signed_bits_unchecked(64) as i64 == d
+    lebits.read_signed_bits_unchecked(8) as i8 == a
+        && lebits.read_signed_bits_unchecked(16) as i16 == b
+        && lebits.read_signed_bits_unchecked(32) as i32 == c
+        && lebits.read_signed_bits_unchecked(64) as i64 == d
 }
 
 #[quickcheck]
@@ -403,10 +403,10 @@ fn read_le_signed_bits2(a: i8, b: i16, c: i32, d: i64) -> bool {
     let mut lebits = LittleEndianReader::new(data.as_slice());
     let mut lebits2 = LittleEndianReader::new(data.as_slice());
 
-    lebits.read_signed_bits(8).map(|x| x as i8) == lebits2.read_i8() &&
-    lebits.read_signed_bits(16).map(|x| x as i16) == lebits2.read_i16() &&
-    lebits.read_signed_bits(32).map(|x| x as i32) == lebits2.read_i32() &&
-    lebits.read_signed_bits(64).map(|x| x as i64) == lebits2.read_i64()
+    lebits.read_signed_bits(8).map(|x| x as i8) == lebits2.read_i8()
+        && lebits.read_signed_bits(16).map(|x| x as i16) == lebits2.read_i16()
+        && lebits.read_signed_bits(32).map(|x| x as i32) == lebits2.read_i32()
+        && lebits.read_signed_bits(64).map(|x| x as i64) == lebits2.read_i64()
 }
 
 #[quickcheck]
@@ -419,10 +419,10 @@ fn read_le_signed_unchecked_bits2(a: i8, b: i16, c: i32, d: i64) -> bool {
     let mut lebits = LittleEndianReader::new(data.as_slice());
     let mut lebits2 = LittleEndianReader::new(data.as_slice());
 
-    lebits.read_signed_bits_unchecked(8) as i8 == lebits2.read_i8_unchecked() &&
-    lebits.read_signed_bits_unchecked(16) as i16 == lebits2.read_i16_unchecked() &&
-    lebits.read_signed_bits_unchecked(32) as i32 == lebits2.read_i32_unchecked() &&
-    lebits.read_signed_bits_unchecked(64) as i64 == lebits2.read_i64_unchecked()
+    lebits.read_signed_bits_unchecked(8) as i8 == lebits2.read_i8_unchecked()
+        && lebits.read_signed_bits_unchecked(16) as i16 == lebits2.read_i16_unchecked()
+        && lebits.read_signed_bits_unchecked(32) as i32 == lebits2.read_i32_unchecked()
+        && lebits.read_signed_bits_unchecked(64) as i64 == lebits2.read_i64_unchecked()
 }
 
 #[quickcheck]
@@ -434,10 +434,10 @@ fn read_be_signed_bits(a: i8, b: i16, c: i32, d: i64) -> bool {
     data.extend_from_slice(&(d.to_be_bytes()));
     let mut bebits = BigEndianReader::new(data.as_slice());
 
-    bebits.read_signed_bits(8).map(|x| x as i8) == Some(a) &&
-    bebits.read_signed_bits(16).map(|x| x as i16) == Some(b) &&
-    bebits.read_signed_bits(32).map(|x| x as i32) == Some(c) &&
-    bebits.read_signed_bits(64).map(|x| x as i64) == Some(d)
+    bebits.read_signed_bits(8).map(|x| x as i8) == Some(a)
+        && bebits.read_signed_bits(16).map(|x| x as i16) == Some(b)
+        && bebits.read_signed_bits(32).map(|x| x as i32) == Some(c)
+        && bebits.read_signed_bits(64).map(|x| x as i64) == Some(d)
 }
 
 #[quickcheck]
@@ -449,10 +449,10 @@ fn read_be_signed_unchecked_bits(a: i8, b: i16, c: i32, d: i64) -> bool {
     data.extend_from_slice(&(d.to_be_bytes()));
     let mut bebits = BigEndianReader::new(data.as_slice());
 
-    bebits.read_signed_bits_unchecked(8) as i8 == a &&
-    bebits.read_signed_bits_unchecked(16) as i16 == b &&
-    bebits.read_signed_bits_unchecked(32) as i32 == c &&
-    bebits.read_signed_bits_unchecked(64) as i64 == d
+    bebits.read_signed_bits_unchecked(8) as i8 == a
+        && bebits.read_signed_bits_unchecked(16) as i16 == b
+        && bebits.read_signed_bits_unchecked(32) as i32 == c
+        && bebits.read_signed_bits_unchecked(64) as i64 == d
 }
 
 #[quickcheck]
@@ -465,10 +465,10 @@ fn read_be_signed_bits2(a: i8, b: i16, c: i32, d: i64) -> bool {
     let mut bebits = BigEndianReader::new(data.as_slice());
     let mut bebits2 = BigEndianReader::new(data.as_slice());
 
-    bebits.read_signed_bits(8).map(|x| x as i8) == bebits2.read_i8() &&
-    bebits.read_signed_bits(16).map(|x| x as i16) == bebits2.read_i16() &&
-    bebits.read_signed_bits(32).map(|x| x as i32) == bebits2.read_i32() &&
-    bebits.read_signed_bits(64).map(|x| x as i64) == bebits2.read_i64()
+    bebits.read_signed_bits(8).map(|x| x as i8) == bebits2.read_i8()
+        && bebits.read_signed_bits(16).map(|x| x as i16) == bebits2.read_i16()
+        && bebits.read_signed_bits(32).map(|x| x as i32) == bebits2.read_i32()
+        && bebits.read_signed_bits(64).map(|x| x as i64) == bebits2.read_i64()
 }
 
 #[quickcheck]
@@ -481,8 +481,8 @@ fn read_be_signed_unchecked_bits2(a: i8, b: i16, c: i32, d: i64) -> bool {
     let mut bebits = BigEndianReader::new(data.as_slice());
     let mut bebits2 = BigEndianReader::new(data.as_slice());
 
-    bebits.read_signed_bits_unchecked(8) as i8 == bebits2.read_i8_unchecked() &&
-    bebits.read_signed_bits_unchecked(16) as i16 == bebits2.read_i16_unchecked() &&
-    bebits.read_signed_bits_unchecked(32) as i32 == bebits2.read_i32_unchecked() &&
-    bebits.read_signed_bits_unchecked(64) as i64 == bebits2.read_i64_unchecked()
+    bebits.read_signed_bits_unchecked(8) as i8 == bebits2.read_i8_unchecked()
+        && bebits.read_signed_bits_unchecked(16) as i16 == bebits2.read_i16_unchecked()
+        && bebits.read_signed_bits_unchecked(32) as i32 == bebits2.read_i32_unchecked()
+        && bebits.read_signed_bits_unchecked(64) as i64 == bebits2.read_i64_unchecked()
 }

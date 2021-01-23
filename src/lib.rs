@@ -2027,9 +2027,7 @@ mod be_tests {
 
     #[test]
     fn test_signed_bits() {
-        let mut bitter = BigEndianReader::new(&[
-            0xe7, 0x39, 0xce, 0x73, 0x9C, 0xE7, 0x39, 0xC0
-        ]);
+        let mut bitter = BigEndianReader::new(&[0xe7, 0x39, 0xce, 0x73, 0x9C, 0xE7, 0x39, 0xC0]);
 
         for _ in 0..12 {
             assert_eq!(bitter.read_signed_bits(5), Some(-4));
@@ -2038,9 +2036,7 @@ mod be_tests {
 
     #[test]
     fn test_signed_bits_unchecked() {
-        let mut bitter = BigEndianReader::new(&[
-            0xe7, 0x39, 0xce, 0x73, 0x9C, 0xE7, 0x39, 0xC0
-        ]);
+        let mut bitter = BigEndianReader::new(&[0xe7, 0x39, 0xce, 0x73, 0x9C, 0xE7, 0x39, 0xC0]);
 
         for _ in 0..12 {
             assert_eq!(bitter.read_signed_bits_unchecked(5), -4);
