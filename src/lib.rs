@@ -597,7 +597,7 @@ macro_rules! gen_read_unchecked {
 }
 
 macro_rules! generate_bitter_end {
-    ($(#[$meta:meta])* $name:ident) => {
+    ($(#[$meta:meta])* $name:ident, $which:ident) => {
         $(#[$meta])*
         pub struct $name<'a> {
             /// The bit position in `current` that we are at
@@ -632,6 +632,32 @@ macro_rules! generate_bitter_end {
                 // 0x38 = 32 | 24 | 16 | 8
                 self.pos & !0x38 != 0
             }
+
+            /// Assuming that `self.data` is pointing to data not yet seen. slurp up 8 bytes or the
+            /// rest of the data (whatever is smaller)
+            ///
+            /// Clippy lint can be unsuppressed once Clippy recognizes this pattern as correct.
+            /// https://github.com/rust-lang/rust-clippy/issues/2881
+            #[allow(clippy::cast_ptr_alignment)]
+            #[inline]
+            fn read(&mut self) -> u64 {
+                unsafe {
+                    if self.data.len() >= BYTE_WIDTH {
+                        core::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64).$which()
+                    } else {
+                        let mut result: u64 = 0;
+                        let len = self.data.len();
+                        self.end_pos = len * 8;
+                        core::ptr::copy_nonoverlapping(
+                            self.data.as_ptr(),
+                            &mut result as *mut u64 as *mut u8,
+                            len,
+                        );
+                        result.$which()
+                    }
+                }
+            }
+
         }
 
         impl<'a> BitReader for $name<'a> {
@@ -884,7 +910,8 @@ generate_bitter_end!(
     /// let mut lebits = BigEndianReader::new(&[0b1000_0000]);
     /// assert_eq!(lebits.read_bit(), Some(true));
     /// ```
-    LittleEndianReader
+    LittleEndianReader,
+    to_le
 );
 generate_bitter_end!(
     /// Reads bits in the big-endian format
@@ -894,7 +921,8 @@ generate_bitter_end!(
     /// let mut bebits = BigEndianReader::new(&[0b1000_0000]);
     /// assert_eq!(bebits.read_bit(), Some(true));
     /// ```
-    BigEndianReader
+    BigEndianReader,
+    to_be
 );
 
 /// Read bits in system native-endian format
@@ -906,31 +934,6 @@ pub type NativeEndianReader<'a> = LittleEndianReader<'a>;
 pub type NativeEndianReader<'a> = BigEndianReader<'a>;
 
 impl<'a> LittleEndianReader<'a> {
-    /// Assuming that `self.data` is pointing to data not yet seen. slurp up 8 bytes or the
-    /// rest of the data (whatever is smaller)
-    ///
-    /// Clippy lint can be unsuppressed once Clippy recognizes this pattern as correct.
-    /// https://github.com/rust-lang/rust-clippy/issues/2881
-    #[allow(clippy::cast_ptr_alignment)]
-    #[inline]
-    fn read(&mut self) -> u64 {
-        unsafe {
-            if self.data.len() >= BYTE_WIDTH {
-                core::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64).to_le()
-            } else {
-                let mut result: u64 = 0;
-                let len = self.data.len();
-                self.end_pos = len * 8;
-                core::ptr::copy_nonoverlapping(
-                    self.data.as_ptr(),
-                    &mut result as *mut u64 as *mut u8,
-                    len,
-                );
-                result.to_le()
-            }
-        }
-    }
-
     #[inline]
     fn read_bits(&mut self, bits: i32) -> Option<u64> {
         let bts = bits as usize;
@@ -1016,31 +1019,6 @@ impl<'a> LittleEndianReader<'a> {
 }
 
 impl<'a> BigEndianReader<'a> {
-    /// Assuming that `self.data` is pointing to data not yet seen. slurp up 8 bytes or the
-    /// rest of the data (whatever is smaller)
-    ///
-    /// Clippy lint can be unsuppressed once Clippy recognizes this pattern as correct.
-    /// https://github.com/rust-lang/rust-clippy/issues/2881
-    #[allow(clippy::cast_ptr_alignment)]
-    #[inline]
-    fn read(&mut self) -> u64 {
-        unsafe {
-            if self.data.len() >= BYTE_WIDTH {
-                core::ptr::read_unaligned(self.data.as_ptr() as *const u8 as *const u64).to_be()
-            } else {
-                let mut result: u64 = 0;
-                let len = self.data.len();
-                self.end_pos = len * 8;
-                core::ptr::copy_nonoverlapping(
-                    self.data.as_ptr(),
-                    &mut result as *mut u64 as *mut u8,
-                    len,
-                );
-                result.to_be()
-            }
-        }
-    }
-
     #[inline]
     fn read_u64(&mut self) -> Option<u64> {
         // While reading 64bit we can take advantage of an optimization trick not available to
