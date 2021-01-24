@@ -8,6 +8,7 @@ use bitreader::BitReader as BR;
 use bitstream_io::{BitRead, BitReader as bio_br, LittleEndian};
 use bitter::{BitReader, LittleEndianReader};
 use criterion::{black_box, Benchmark, Criterion, ParameterizedBenchmark, Throughput};
+use nom::bitvec::{order::Lsb0, prelude::BitField, view::BitView};
 use std::io::Cursor;
 
 static DATA: [u8; 0x10_000] = [0; 0x10_000];
@@ -64,10 +65,21 @@ fn bitting(c: &mut Criterion) {
             let mut d = &DATA[..];
             let mut pos = 1;
             for _ in 0..ITER {
-                let ((left, new_pos), _): ((&[u8], usize), u32) =
+                let ((left, new_pos), _): ((&[u8], usize), u64) =
                     take_bits!((&d[..], pos), *param as usize).unwrap();
                 pos = new_pos;
                 d = left;
+            }
+        })
+    })
+    .with_function("bitvec", |b, param| {
+        b.iter(|| {
+            let mut bits = DATA.view_bits::<Lsb0>();
+            bits = &bits[1..];
+            for _ in 0..ITER {
+                let (curr, next) = bits.split_at(*param as usize);
+                black_box(curr.load_le::<u64>());
+                bits = next;
             }
         })
     })

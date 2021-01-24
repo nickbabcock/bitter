@@ -75,8 +75,9 @@ bitter = { version = "x", default-features = false }
 
 Bitter is hardly the first Rust library for handling bits.
 [nom](https://crates.io/crates/nom),
+[bitvec](https://github.com/bitvecto-rs/bitvec),
 [bitstream_io](https://crates.io/crates/bitstream-io), and
-[bitreader](https://crates.io/crates/bitreader) are crates one should consider.
+[bitreader](https://crates.io/crates/bitreader) are all crates that deal with bit reading.
 The reason why someone would choose bitter is speed.
 
 ## Benchmarking

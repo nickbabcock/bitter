@@ -25,9 +25,6 @@ df <- mutate(df,
              latency = (iteration_count * 10000) / sample_measured_value,
 )
 
-pal <- hue_pal()(df %>% select(fn) %>% distinct() %>% count() %>% pull())
-names(pal) <- df %>% select(fn) %>% distinct() %>% pull()
-
 ggplot(df, aes(value, latency, color = fn)) +
   stat_summary(fun = mean, geom="point", size = 1.5) +
   stat_summary(aes(linetype = line), fun = mean, geom="line", size = 1.2) +
@@ -39,6 +36,5 @@ ggplot(df, aes(value, latency, color = fn)) +
        col = "Bit reader",
        y = "Reads per ns",
        x = "Read size (bits)") +
-  guides(linetype = FALSE) +
-  scale_colour_manual(values = pal)
+  guides(linetype = FALSE)
 ggsave('bench-bit-reads.png', width = 9, height = 5, dpi = 100)
