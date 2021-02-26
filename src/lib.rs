@@ -1212,7 +1212,7 @@ mod tests {
     fn test_has_remaining_bits_bit_by_bit() {
         let mut bitter = LittleEndianReader::new(&[0, 0, 0, 0, 0, 0, 0, 0]);
         for _ in 0..200 {
-            assert!(bitter.has_bits_remaining(1), bitter.read_bit().is_some());
+            assert_eq!(bitter.has_bits_remaining(1), bitter.read_bit().is_some());
         }
     }
 
