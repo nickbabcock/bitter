@@ -29,7 +29,7 @@ assert_eq!(bitter.read_bits(7), Some(0x02));
 ```
 
 There are two main APIs available: checked and unchecked functions. The above example uses the checked API as return types are options to designate that there wasn't sufficient data to complete the read. Unchecked APIs will exhibit
-undefined behavior if there is not enough data left, but can be significantly faster. 
+undefined behavior if there is not enough data left, but can be significantly faster.
 
 Tips:
 

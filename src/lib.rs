@@ -7,13 +7,13 @@ Bitter takes a slice of byte data and reads bits in a desired endian format plat
 ## Features
 
  - ✔ support for little endian, big endian, and native endian formats
- - ✔ request an arbitrary amount of bits (up to 32 bits)
- - ✔ ergonomic requests for common data types (including `u64` / `i64`)
+ - ✔ request an arbitrary amount of bits (up to 64 bits)
+ - ✔ ergonomic requests for common data types (eg: `u8` ... `u64`, `f32`, etc)
  - ✔ > 5 GB/s throughput when reading large number of bits
  - ✔ > 1 GB/s throughput when reading single digit sized chunks of bits
  - ✔ two APIs: one for safety and one for speed
+ - ✔ zero allocations
  - ✔ zero dependencies
- - ✔ zer  o allocations
  - ✔ `no_std` compatible
 
 ## Example
