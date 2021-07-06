@@ -1,0 +1,25 @@
+[package]
+name = "compare"
+version = "0.0.1"
+authors = ["Nick Babcock <nbabcock19@hotmail.com>"]
+license = "MIT"
+edition = "2018"
+publish = false
+
+[workspace]
+members = ["."]
+
+[dev-dependencies]
+criterion = "0.3"
+bitter = {path = ".." }
+bitreader = "0.3"
+bitstream-io = "1"
+nom = "6"
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[[bench]]
+name = "bench_bits"
+harness = false
