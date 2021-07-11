@@ -529,6 +529,7 @@ pub trait BitReader {
 /// assert_eq!(bitter::bit_width(0), 0);
 /// assert_eq!(bitter::bit_width(u64::from(u32::max_value())), 32);
 /// ```
+#[inline]
 pub const fn bit_width(input: u64) -> u32 {
     (core::mem::size_of::<u64>() as u32) * 8 - input.leading_zeros()
 }
@@ -774,6 +775,7 @@ macro_rules! generate_bitter_end {
                 }
             }
 
+            #[inline]
             fn is_empty(&self) -> bool {
                 self.approx_bytes_remaining() == 0
             }
@@ -828,6 +830,7 @@ macro_rules! generate_bitter_end {
                 }
             }
 
+            #[inline]
             fn read_bytes(&mut self, buf: &mut [u8]) -> bool {
                 let pos_bytes = self.pos >> 3;
                 let bytes_left = self.data.len() - pos_bytes;
@@ -849,6 +852,7 @@ macro_rules! generate_bitter_end {
                 }
             }
 
+            #[inline]
             fn read_bits_max(&mut self, max: u64) -> Option<u64> {
                 let bits = bit_width(max) as i32 - 1;
                 self.read_bits_max_computed(core::cmp::max(bits, 0), max)
