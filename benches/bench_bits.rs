@@ -6,7 +6,7 @@ static DATA: [u8; 0x10_000] = [0; 0x10_000];
 const ITER: u64 = 1000;
 
 fn bitting(c: &mut Criterion) {
-    let parameters: Vec<i32> = (1..64).collect();
+    let parameters: Vec<i32> = (1..65).collect();
 
     let mut group = c.benchmark_group("bit-reading");
     for i in parameters {

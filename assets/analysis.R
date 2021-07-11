@@ -17,7 +17,7 @@ get_line_type <- Vectorize(function(fn) {
          "other")
 })
 
-df <- read_csv("./benchmark-data.csv")
+df <- read_csv("./bitter-benchmark-data.csv")
 
 df <- mutate(df,
              fn = `function`,

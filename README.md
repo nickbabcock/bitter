@@ -85,10 +85,9 @@ The reason why someone would choose bitter is speed.
 Benchmarks are ran with the following command:
 
 ```bash
-cargo clean
-RUSTFLAGS="-C target-cpu=native" cargo bench -- bit-reading
-find ./target -path "*bit-reading*" -wholename "*/new/raw.csv" -print0 \
-  | xargs -0 xsv cat rows > assets/benchmark-data.csv
+(cd compare && cargo clean && RUSTFLAGS="-C target-cpu=native" cargo bench)
+find ./compare/target -path "*bit-reading*" -wholename "*/new/raw.csv" -print0 \
+  | xargs -0 xsv cat rows > assets/bitter-benchmark-data.csv
 ```
 
 And can be analyzed with the R script found in the assets directory. Keep in mind, benchmarks will vary by machine
