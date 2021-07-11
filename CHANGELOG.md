@@ -1,3 +1,7 @@
+## 0.5.1 - 2021-07-11
+
+- Mark remaining non-generic functions as inline
+
 ## 0.5.0 - 2021-01-23
 
 This is a big and breaking release but hopefully at the end of the changelog you'll be in agreement that the improvements are very much worth it. I'm confident that the current API will hold up much better and I'm committed to releasing 1.0 if no unforseen flaws are encountered.
