@@ -44,7 +44,7 @@ ggplot(mapping = aes(value, latency)) +
   stat_summary(data = dfBitter, mapping=aes(linetype = line, color = fn), fun = mean, geom="line", size = 1.2) +
   scale_color_manual("Bitter", values=pal, guide=guide_legend(order = 1)) +
   scale_y_continuous(breaks = pretty_breaks(10)) +
-  scale_x_continuous(limit = c(1, NA), breaks = pretty_breaks(12)) +
+  scale_x_continuous(breaks = c(seq(1, 64, 4), 64)) +
   labs(title = "Rust Bit Readers Performance Comparison",
        subtitle = "Performance measured in reads per nanosecond (higher is better)",
        caption = "Bitter implementations marked with solid lines",

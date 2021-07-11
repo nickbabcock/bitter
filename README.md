@@ -80,6 +80,14 @@ Bitter is hardly the first Rust library for handling bits.
 [bitreader](https://crates.io/crates/bitreader) are all crates that deal with bit reading.
 The reason why someone would choose bitter is speed.
 
+![bench-bit-reads.png](assets/bench-bit-reads.png)
+
+Takeaways:
+
+* Bitter unchecked APIs yield the greatest throughput (reads per second)
+* Bitter checked APIs cost less than half the throughput of bitter unchecked APIs
+* Bitter is at least 4x faster than other libraries
+
 ## Benchmarking
 
 Benchmarks are ran with the following command:
@@ -91,11 +99,3 @@ find ./compare/target -path "*bit-reading*" -wholename "*/new/raw.csv" -print0 \
 ```
 
 And can be analyzed with the R script found in the assets directory. Keep in mind, benchmarks will vary by machine
-
-![bench-bit-reads.png](assets/bench-bit-reads.png)
-
-Takeaways from the above chart:
-
-* Bitter unchecked APIs yield the greatest throughput (reads per second)
-* Bitter checked APIs cost less than half the throughput of bitter unchecked APIs
-* Bitter is 2x-6x faster than other libraries depending on the read size
