@@ -1,5 +1,6 @@
-use bitter::{BigEndianReader, BitReader, LittleEndianReader};
+use bitter::{BigEndianReader, BitIoReader, BitReader, LittleEndianIoReader, LittleEndianReader};
 use quickcheck_macros::quickcheck;
+use std::io::{BufReader, Read};
 
 #[quickcheck]
 fn read_bytes_eq(k1: u8, data: Vec<u8>) -> bool {
@@ -493,4 +494,47 @@ fn read_be_signed_unchecked_bits2(a: i8, b: i16, c: i32, d: i64) -> bool {
         && bebits.read_signed_bits_unchecked(16) as i16 == bebits2.read_i16_unchecked()
         && bebits.read_signed_bits_unchecked(32) as i32 == bebits2.read_i32_unchecked()
         && bebits.read_signed_bits_unchecked(64) as i64 == bebits2.read_i64_unchecked()
+}
+
+#[quickcheck]
+fn io_read_bits_equal(data: Vec<u8>) -> bool {
+    let buf = BufReader::with_capacity(2, data.as_slice());
+    let mut bits = LittleEndianIoReader::new(buf);
+    let mut bits2 = LittleEndianIoReader::new(data.as_slice());
+    let mut bits3 = LittleEndianReader::new(data.as_slice());
+    let mut result = true;
+
+    while bits3.has_bits_remaining(5) {
+        let a = bits3.read_bits(5).unwrap();
+        result &= a == bits.read_bits(5).unwrap() && a == bits2.read_bits(5).unwrap();
+    }
+
+    result
+}
+
+#[quickcheck]
+fn io_read_bytes_equal(data: Vec<u8>) -> bool {
+    let buf = BufReader::with_capacity(2, data.as_slice());
+    let mut bits = LittleEndianIoReader::new(buf);
+    let mut bits2 = LittleEndianIoReader::new(data.as_slice());
+    let mut bits3 = LittleEndianReader::new(data.as_slice());
+    let mut result = true;
+
+    if bits3.has_bits_remaining(1) {
+        let a = bits3.read_bits(1).unwrap();
+        result &= a == bits.read_bits(1).unwrap() && a == bits2.read_bits(1).unwrap();
+    }
+
+    let mut scratch = [0u8; 3];
+    let mut scratch2 = [0u8; 3];
+    let mut scratch3 = [0u8; 3];
+    while bits3.has_bits_remaining(24) {
+        bits.read_exact(&mut scratch[..]).unwrap();
+        bits2.read_exact(&mut scratch2[..]).unwrap();
+        bits3.read_bytes(&mut scratch3[..]);
+
+        result &= scratch == scratch2 && scratch == scratch3;
+    }
+
+    result
 }

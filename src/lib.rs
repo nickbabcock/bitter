@@ -74,6 +74,12 @@ bitter = { version = "x", default-features = false }
 #![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
 #![warn(missing_docs)]
 
+#[cfg(feature = "std")]
+mod io;
+
+#[cfg(feature = "std")]
+pub use io::*;
+
 /// Read bits in a given endian order
 pub trait BitReader {
     /// Consume a bit and return if the bit was enabled
@@ -575,7 +581,7 @@ fn shr_mask(val: u64, shift: usize) -> u64 {
 }
 
 const BYTE_WIDTH: usize = core::mem::size_of::<u64>();
-const BIT_WIDTH: usize = BYTE_WIDTH * 8;
+pub(crate) const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 
 macro_rules! gen_read {
     ($name:ident, $t:ty) => {
