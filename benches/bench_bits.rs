@@ -1,4 +1,4 @@
-use bitter::{BitReader, LittleEndianReader};
+use bitter::{BitIoReader, BitReader, LittleEndianIoReader, LittleEndianReader};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
 static DATA: [u8; 0x10_000] = [0; 0x10_000];
@@ -17,7 +17,7 @@ fn bitting(c: &mut Criterion) {
                 let mut bitter = LittleEndianReader::new(&DATA[..]);
                 bitter.read_bit();
                 for _ in 0..ITER {
-                    black_box(bitter.read_bits(*param));
+                    black_box(bitter.read_bits(*param).unwrap());
                 }
             })
         });
@@ -28,6 +28,16 @@ fn bitting(c: &mut Criterion) {
                 bitter.read_bit();
                 for _ in 0..ITER {
                     black_box(bitter.read_bits_unchecked(*param));
+                }
+            })
+        });
+
+        group.bench_with_input(BenchmarkId::new("bitter-io", i), &i, |b, param| {
+            b.iter(|| {
+                let mut bitter = LittleEndianIoReader::new(&DATA[..]);
+                bitter.read_bit().unwrap();
+                for _ in 0..ITER {
+                    black_box(bitter.read_bits(*param).unwrap());
                 }
             })
         });

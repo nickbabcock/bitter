@@ -1,4 +1,7 @@
-use bitter::{BigEndianReader, BitIoReader, BitReader, LittleEndianIoReader, LittleEndianReader};
+use bitter::{
+    BigEndianIoReader, BigEndianReader, BitIoReader, BitReader, LittleEndianIoReader,
+    LittleEndianReader,
+};
 use quickcheck_macros::quickcheck;
 use std::io::{BufReader, Read};
 
@@ -537,4 +540,175 @@ fn io_read_bytes_equal(data: Vec<u8>) -> bool {
     }
 
     result
+}
+
+#[quickcheck]
+fn io_read_be_bits_equal(data: Vec<u8>) -> bool {
+    let buf = BufReader::with_capacity(2, data.as_slice());
+    let mut bits = BigEndianIoReader::new(buf);
+    let mut bits2 = BigEndianIoReader::new(data.as_slice());
+    let mut bits3 = BigEndianReader::new(data.as_slice());
+    let mut result = true;
+
+    while bits3.has_bits_remaining(5) {
+        let a = bits3.read_bits(5).unwrap();
+        result &= a == bits.read_bits(5).unwrap() && a == bits2.read_bits(5).unwrap();
+    }
+
+    result
+}
+
+#[quickcheck]
+fn io_read_be_bytes_equal(data: Vec<u8>) -> bool {
+    let buf = BufReader::with_capacity(2, data.as_slice());
+    let mut bits = BigEndianIoReader::new(buf);
+    let mut bits2 = BigEndianIoReader::new(data.as_slice());
+    let mut bits3 = BigEndianReader::new(data.as_slice());
+    let mut result = true;
+
+    if bits3.has_bits_remaining(1) {
+        let a = bits3.read_bits(1).unwrap();
+        result &= a == bits.read_bits(1).unwrap() && a == bits2.read_bits(1).unwrap();
+    }
+
+    let mut scratch = [0u8; 3];
+    let mut scratch2 = [0u8; 3];
+    let mut scratch3 = [0u8; 3];
+    while bits3.has_bits_remaining(24) {
+        bits.read_exact(&mut scratch[..]).unwrap();
+        bits2.read_exact(&mut scratch2[..]).unwrap();
+        bits3.read_bytes(&mut scratch3[..]);
+
+        result &= scratch == scratch2 && scratch == scratch3;
+    }
+
+    result
+}
+
+#[quickcheck]
+fn io_read_le_bits(a: i8, b: i16, c: i32, d: i64, e: u8, f: u16, g: u32, h: u64) -> bool {
+    let mut data = Vec::new();
+    data.extend_from_slice(&(a.to_le_bytes()));
+    data.extend_from_slice(&(b.to_le_bytes()));
+    data.extend_from_slice(&(c.to_le_bytes()));
+    data.extend_from_slice(&(d.to_le_bytes()));
+    data.extend_from_slice(&(e.to_le_bytes()));
+    data.extend_from_slice(&(f.to_le_bytes()));
+    data.extend_from_slice(&(g.to_le_bytes()));
+    data.extend_from_slice(&(h.to_le_bytes()));
+
+    let buf = BufReader::with_capacity(2, data.as_slice());
+    let mut lebits = LittleEndianIoReader::new(buf);
+
+    lebits.read_signed_bits(8).map(|x| x as i8).unwrap() == a
+        && lebits.read_signed_bits(16).map(|x| x as i16).unwrap() == b
+        && lebits.read_signed_bits(32).map(|x| x as i32).unwrap() == c
+        && lebits.read_signed_bits(64).map(|x| x as i64).unwrap() == d
+        && lebits.read_bits(8).map(|x| x as u8).unwrap() == e
+        && lebits.read_bits(16).map(|x| x as u16).unwrap() == f
+        && lebits.read_bits(32).map(|x| x as u32).unwrap() == g
+        && lebits.read_bits(64).map(|x| x as u64).unwrap() == h
+}
+
+#[quickcheck]
+fn io_read_le_types(a: i8, b: i16, c: i32, d: i64, e: u8, f: u16, g: u32, h: u64) -> bool {
+    let mut data = Vec::new();
+    data.extend_from_slice(&(a.to_le_bytes()));
+    data.extend_from_slice(&(b.to_le_bytes()));
+    data.extend_from_slice(&(c.to_le_bytes()));
+    data.extend_from_slice(&(d.to_le_bytes()));
+    data.extend_from_slice(&(e.to_le_bytes()));
+    data.extend_from_slice(&(f.to_le_bytes()));
+    data.extend_from_slice(&(g.to_le_bytes()));
+    data.extend_from_slice(&(h.to_le_bytes()));
+    let buf = BufReader::with_capacity(2, data.as_slice());
+    let mut lebits = LittleEndianIoReader::new(buf);
+
+    lebits.read_i8().unwrap() == a
+        && lebits.read_i16().unwrap() == b
+        && lebits.read_i32().unwrap() == c
+        && lebits.read_i64().unwrap() == d
+        && lebits.read_u8().unwrap() == e
+        && lebits.read_u16().unwrap() == f
+        && lebits.read_u32().unwrap() == g
+        && lebits.read_u64().unwrap() == h
+}
+
+#[quickcheck]
+fn io_read_le_float_types(a: f32, b: f64) -> bool {
+    if !a.is_finite() || !b.is_finite() {
+        return true;
+    }
+
+    let mut data = Vec::new();
+    data.extend_from_slice(&(a.to_le_bytes()));
+    data.extend_from_slice(&(b.to_le_bytes()));
+    let buf = BufReader::with_capacity(2, data.as_slice());
+    let mut lebits = LittleEndianIoReader::new(buf);
+
+    lebits.read_f32().unwrap() == a && lebits.read_f64().unwrap() == b
+}
+
+#[quickcheck]
+fn io_read_be_bits(a: i8, b: i16, c: i32, d: i64, e: u8, f: u16, g: u32, h: u64) -> bool {
+    let mut data = Vec::new();
+    data.extend_from_slice(&(a.to_be_bytes()));
+    data.extend_from_slice(&(b.to_be_bytes()));
+    data.extend_from_slice(&(c.to_be_bytes()));
+    data.extend_from_slice(&(d.to_be_bytes()));
+    data.extend_from_slice(&(e.to_be_bytes()));
+    data.extend_from_slice(&(f.to_be_bytes()));
+    data.extend_from_slice(&(g.to_be_bytes()));
+    data.extend_from_slice(&(h.to_be_bytes()));
+
+    let buf = BufReader::with_capacity(2, data.as_slice());
+    let mut bebits = BigEndianIoReader::new(buf);
+
+    bebits.read_signed_bits(8).map(|x| x as i8).unwrap() == a
+        && bebits.read_signed_bits(16).map(|x| x as i16).unwrap() == b
+        && bebits.read_signed_bits(32).map(|x| x as i32).unwrap() == c
+        && bebits.read_signed_bits(64).map(|x| x as i64).unwrap() == d
+        && bebits.read_bits(8).map(|x| x as u8).unwrap() == e
+        && bebits.read_bits(16).map(|x| x as u16).unwrap() == f
+        && bebits.read_bits(32).map(|x| x as u32).unwrap() == g
+        && bebits.read_bits(64).map(|x| x as u64).unwrap() == h
+}
+
+#[quickcheck]
+fn io_read_be_types(a: i8, b: i16, c: i32, d: i64, e: u8, f: u16, g: u32, h: u64) -> bool {
+    let mut data = Vec::new();
+    data.extend_from_slice(&(a.to_be_bytes()));
+    data.extend_from_slice(&(b.to_be_bytes()));
+    data.extend_from_slice(&(c.to_be_bytes()));
+    data.extend_from_slice(&(d.to_be_bytes()));
+    data.extend_from_slice(&(e.to_be_bytes()));
+    data.extend_from_slice(&(f.to_be_bytes()));
+    data.extend_from_slice(&(g.to_be_bytes()));
+    data.extend_from_slice(&(h.to_be_bytes()));
+    let buf = BufReader::with_capacity(2, data.as_slice());
+    let mut bebits = BigEndianIoReader::new(buf);
+
+    bebits.read_i8().unwrap() == a
+        && bebits.read_i16().unwrap() == b
+        && bebits.read_i32().unwrap() == c
+        && bebits.read_i64().unwrap() == d
+        && bebits.read_u8().unwrap() == e
+        && bebits.read_u16().unwrap() == f
+        && bebits.read_u32().unwrap() == g
+        && bebits.read_u64().unwrap() == h
+}
+
+#[quickcheck]
+fn io_read_be_float_types(a: f32, b: f64) -> bool {
+    if !a.is_finite() || !b.is_finite() {
+        return true;
+    }
+
+    let mut data = Vec::new();
+    data.extend_from_slice(&(a.to_be_bytes()));
+    data.extend_from_slice(&(b.to_be_bytes()));
+    let buf = BufReader::with_capacity(2, data.as_slice());
+    let mut bebits = BigEndianIoReader::new(buf);
+
+    bebits.read_f32().unwrap() == a && bebits.read_f64().unwrap() == b
 }

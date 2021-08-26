@@ -1,4 +1,4 @@
-use crate::{bit_mask, BitReader, LittleEndianReader, BIT_WIDTH};
+use crate::{bit_mask, BigEndianReader, BitReader, LittleEndianReader, BIT_WIDTH};
 use std::io::{Error, ErrorKind, Read, Result};
 
 trait ReadExt {
@@ -26,211 +26,343 @@ where
     }
 }
 
+/// Trait that allows one to read bits from any reader.
+///
+/// When possible one should work with a [`BitReader`] due to unparalleled
+/// performance. But this isn't possible when all the bytes aren't known
+/// upfront. `BitIoReader` are for times when all one has to work with is a
+/// [`std::io::Read`].
+///
+/// To maintain performance, all bitter implementations of `BitIoReader` use
+/// an internal buffer. The downside to this approach is that the caveats of
+/// [`std::io::BufReader`] apply here: namely the reader will be in an
+/// undetermined state when queried. 
 pub trait BitIoReader: Read {
+    /// The inner reader type
     type Inner;
 
+    /// Gets a mutable reference to the underlying reader.
+    ///
+    /// See [`std::io::BufReader::get_mut`] for similar caveats
+    ///
+    /// ```no_run
+    /// use bitter::{BitIoReader, LittleEndianIoReader};
+    /// use std::fs::File;
+    ///
+    /// fn main() -> std::io::Result<()> {
+    ///     let f1 = File::open("log.txt")?;
+    ///     let mut reader = LittleEndianIoReader::new(f1);
+    ///
+    ///     let f2 = reader.get_mut();
+    ///     Ok(())
+    /// }
+    /// ```
     fn get_mut(&mut self) -> &mut Self::Inner;
-    fn get_ref(&mut self) -> &mut Self::Inner;
+
+    /// Gets a reference to the underlying reader.
+    ///
+    /// See [`std::io::BufReader::get_ref`] for similar caveats
+    ///
+    /// ```no_run
+    /// use bitter::{BitIoReader, LittleEndianIoReader};
+    /// use std::fs::File;
+    ///
+    /// fn main() -> std::io::Result<()> {
+    ///     let f1 = File::open("log.txt")?;
+    ///     let reader = LittleEndianIoReader::new(f1);
+    ///
+    ///     let f2 = reader.get_ref();
+    ///     Ok(())
+    /// }
+    /// ```
+    fn get_ref(&self) -> &Self::Inner;
+
+    /// Unwraps this BitIoReader returning the underlying reader
+    ///
+    /// See [`std::io::BufReader::into_inner`] for similar caveats
+    ///
+    /// ```no_run
+    /// use bitter::{BitIoReader, LittleEndianIoReader};
+    /// use std::fs::File;
+    ///
+    /// fn main() -> std::io::Result<()> {
+    ///     let f1 = File::open("log.txt")?;
+    ///     let reader = LittleEndianIoReader::new(f1);
+    ///
+    ///     let f2 = reader.into_inner();
+    ///     Ok(())
+    /// }
+    /// ```
     fn into_inner(self) -> Self::Inner;
+
+    /// The IO equivalent of [`BitReader::read_bit`]
     fn read_bit(&mut self) -> Result<bool>;
+
+    /// The IO equivalent of [`BitReader::read_u8`]
     fn read_u8(&mut self) -> Result<u8>;
+
+    /// The IO equivalent of [`BitReader::read_u16`]
     fn read_u16(&mut self) -> Result<u16>;
+
+    /// The IO equivalent of [`BitReader::read_u32`]
     fn read_u32(&mut self) -> Result<u32>;
+
+    /// The IO equivalent of [`BitReader::read_u64`]
     fn read_u64(&mut self) -> Result<u64>;
+
+    /// The IO equivalent of [`BitReader::read_i8`]
     fn read_i8(&mut self) -> Result<i8>;
+
+    /// The IO equivalent of [`BitReader::read_i16`]
     fn read_i16(&mut self) -> Result<i16>;
+
+    /// The IO equivalent of [`BitReader::read_i32`]
     fn read_i32(&mut self) -> Result<i32>;
+
+    /// The IO equivalent of [`BitReader::read_i64`]
     fn read_i64(&mut self) -> Result<i64>;
+
+    /// The IO equivalent of [`BitReader::read_f32`]
     fn read_f32(&mut self) -> Result<f32>;
+
+    /// The IO equivalent of [`BitReader::read_f64`]
     fn read_f64(&mut self) -> Result<f64>;
+
+    /// The IO equivalent of [`BitReader::read_bits`]
     fn read_bits(&mut self, bits: i32) -> Result<u64>;
+
+    /// The IO equivalent of [`BitReader::read_signed_bits`]
     fn read_signed_bits(&mut self, bits: i32) -> Result<i64>;
 }
 
-pub struct LittleEndianIoReader<R> {
-    buf: Vec<u8>,
-    bits: LittleEndianReader<'static>,
-    inner: R,
-}
-
-impl<R: Read> LittleEndianIoReader<R> {
-    pub fn new(inner: R) -> LittleEndianIoReader<R> {
-        let buf = vec![0u8; 8192];
-        let bits = LittleEndianReader::new(&[]);
-        LittleEndianIoReader { buf, bits, inner }
-    }
-}
-
-impl<R> BitIoReader for LittleEndianIoReader<R>
-where
-    R: Read,
-{
-    type Inner = R;
-
-    fn get_mut(&mut self) -> &mut R {
-        &mut self.inner
-    }
-
-    fn get_ref(&mut self) -> &mut R {
-        &mut self.inner
-    }
-
-    fn into_inner(self) -> R {
-        self.inner
-    }
-
-    #[inline]
-    fn read_bit(&mut self) -> Result<bool> {
-        self.read_bits(1).map(|x| x != 0)
-    }
-
-    #[inline]
-    fn read_u8(&mut self) -> Result<u8> {
-        self.read_bits((core::mem::size_of::<u8>() * 8) as i32)
-            .map(|x| x as u8)
-    }
-
-    #[inline]
-    fn read_u16(&mut self) -> Result<u16> {
-        self.read_bits((core::mem::size_of::<u16>() * 8) as i32)
-            .map(|x| x as u16)
-    }
-
-    #[inline]
-    fn read_u32(&mut self) -> Result<u32> {
-        self.read_bits((core::mem::size_of::<u32>() * 8) as i32)
-            .map(|x| x as u32)
-    }
-
-    #[inline]
-    fn read_u64(&mut self) -> Result<u64> {
-        self.read_bits((core::mem::size_of::<u64>() * 8) as i32)
-            .map(|x| x as u64)
-    }
-
-    #[inline]
-    fn read_i8(&mut self) -> Result<i8> {
-        self.read_bits((core::mem::size_of::<i8>() * 8) as i32)
-            .map(|x| x as i8)
-    }
-
-    #[inline]
-    fn read_i16(&mut self) -> Result<i16> {
-        self.read_bits((core::mem::size_of::<i16>() * 8) as i32)
-            .map(|x| x as i16)
-    }
-
-    #[inline]
-    fn read_i32(&mut self) -> Result<i32> {
-        self.read_bits((core::mem::size_of::<i32>() * 8) as i32)
-            .map(|x| x as i32)
-    }
-
-    #[inline]
-    fn read_i64(&mut self) -> Result<i64> {
-        self.read_bits((core::mem::size_of::<i64>() * 8) as i32)
-            .map(|x| x as i64)
-    }
-
-    #[inline]
-    fn read_f32(&mut self) -> Result<f32> {
-        self.read_u32().map(f32::from_bits)
-    }
-
-    #[inline]
-    fn read_f64(&mut self) -> Result<f64> {
-        self.read_u64().map(f64::from_bits)
-    }
-
-    #[inline]
-    fn read_bits(&mut self, bits: i32) -> Result<u64> {
-        if let Some(x) = self.bits.read_bits(bits) {
-            return Ok(x);
+macro_rules! generate_bitter_io {
+    ($(#[$meta:meta])* $name:ident, $which:ident) => {
+        $(#[$meta])*
+        pub struct $name<R> {
+            buf: Vec<u8>,
+            bits: $which<'static>,
+            inner: R,
         }
 
-        let bits_remaining = self.bits.bits_remaining().unwrap() as i32;
-        let left = bits - bits_remaining;
-
-        let high = if bits_remaining == 0 {
-            0
-        } else {
-            self.bits.read_bits_unchecked(bits_remaining) << (left as u64)
-        };
-
-        let to_read = (left / 8) + ((left % 8 != 0) as i32);
-        let read = self.inner.read_at_least(&mut self.buf, to_read as usize)?;
-        let sl = self.buf.as_slice();
-
-        // SAFETY: As long as the vec does not reallocate, this is safe
-        let sl: &'static [u8] = unsafe { std::mem::transmute(sl) };
-        self.bits = LittleEndianReader::new(&sl[..read]);
-        let low = self.bits.read_bits_unchecked(left);
-
-        Ok(high + low)
-    }
-
-    #[inline]
-    fn read_signed_bits(&mut self, bits: i32) -> Result<i64> {
-        let bts = bits as usize;
-        self.read_bits(bits).map(|x| {
-            if x.leading_zeros() == (BIT_WIDTH - bts) as u32 {
-                (x as i64) - (bit_mask(bts) + 1) as i64
-            } else {
-                x as i64
+        impl<R: Read> $name<R> {
+            /// Creates the endian specific reader that will consume from the underlying reader.
+            ///
+            /// The default buffer size is 8 KB.
+            pub fn new(inner: R) -> $name<R> {
+                Self::with_capacity(8192, inner)
             }
-        })
+
+            /// Creates the endian specific reader with a given internal buffer 
+            pub fn with_capacity(capacity: usize, inner: R) -> $name<R> {
+                let buf = vec![0u8; capacity];
+                let bits = $which::new(&[]);
+                $name { buf, bits, inner }
+            }
+
+            #[inline(never)]
+            fn read_bits_fallback(&mut self, bits: i32) -> Result<u64> {
+                let bits_remaining = self.bits.bits_remaining().unwrap() as i32;
+                let left = bits - bits_remaining;
+
+                let high = if bits_remaining == 0 {
+                    0
+                } else {
+                    self.bits.read_bits_unchecked(bits_remaining) << (left as u64)
+                };
+
+                let to_read = (left / 8) + ((left % 8 != 0) as i32);
+                let read = self.inner.read_at_least(&mut self.buf, to_read as usize)?;
+                let sl = self.buf.as_slice();
+
+                // SAFETY: As long as the vec does not reallocate, this is safe
+                let sl: &'static [u8] = unsafe { std::mem::transmute(sl) };
+                self.bits = $which::new(&sl[..read]);
+                let low = self.bits.read_bits_unchecked(left);
+
+                Ok(high + low)
+            }
+        }
+
+        impl<R> BitIoReader for $name<R>
+        where
+            R: Read,
+        {
+            type Inner = R;
+
+            fn get_mut(&mut self) -> &mut R {
+                &mut self.inner
+            }
+
+            fn get_ref(&self) -> &R {
+                &self.inner
+            }
+
+            fn into_inner(self) -> R {
+                self.inner
+            }
+
+            #[inline]
+            fn read_bit(&mut self) -> Result<bool> {
+                self.read_bits(1).map(|x| x != 0)
+            }
+
+            #[inline]
+            fn read_u8(&mut self) -> Result<u8> {
+                self.read_bits((core::mem::size_of::<u8>() * 8) as i32)
+                    .map(|x| x as u8)
+            }
+
+            #[inline]
+            fn read_u16(&mut self) -> Result<u16> {
+                self.read_bits((core::mem::size_of::<u16>() * 8) as i32)
+                    .map(|x| x as u16)
+            }
+
+            #[inline]
+            fn read_u32(&mut self) -> Result<u32> {
+                self.read_bits((core::mem::size_of::<u32>() * 8) as i32)
+                    .map(|x| x as u32)
+            }
+
+            #[inline]
+            fn read_u64(&mut self) -> Result<u64> {
+                self.read_bits((core::mem::size_of::<u64>() * 8) as i32)
+                    .map(|x| x as u64)
+            }
+
+            #[inline]
+            fn read_i8(&mut self) -> Result<i8> {
+                self.read_bits((core::mem::size_of::<i8>() * 8) as i32)
+                    .map(|x| x as i8)
+            }
+
+            #[inline]
+            fn read_i16(&mut self) -> Result<i16> {
+                self.read_bits((core::mem::size_of::<i16>() * 8) as i32)
+                    .map(|x| x as i16)
+            }
+
+            #[inline]
+            fn read_i32(&mut self) -> Result<i32> {
+                self.read_bits((core::mem::size_of::<i32>() * 8) as i32)
+                    .map(|x| x as i32)
+            }
+
+            #[inline]
+            fn read_i64(&mut self) -> Result<i64> {
+                self.read_bits((core::mem::size_of::<i64>() * 8) as i32)
+                    .map(|x| x as i64)
+            }
+
+            #[inline]
+            fn read_f32(&mut self) -> Result<f32> {
+                self.read_u32().map(f32::from_bits)
+            }
+
+            #[inline]
+            fn read_f64(&mut self) -> Result<f64> {
+                self.read_u64().map(f64::from_bits)
+            }
+
+            #[inline]
+            fn read_bits(&mut self, bits: i32) -> Result<u64> {
+                match self.bits.read_bits(bits) {
+                    Some(x) => Ok(x),
+                    None => self.read_bits_fallback(bits),
+                }
+            }
+
+            #[inline]
+            fn read_signed_bits(&mut self, bits: i32) -> Result<i64> {
+                let bts = bits as usize;
+                if bts == BIT_WIDTH {
+                    self.read_i64()
+                } else {
+                    self.read_bits(bits).map(|x| {
+                        if x.leading_zeros() == (BIT_WIDTH - bts) as u32 {
+                            (x as i64) - (bit_mask(bts) + 1) as i64
+                        } else {
+                            x as i64
+                        }
+                    })
+                }
+            }
+        }
+
+        impl<R> Read for $name<R>
+        where
+            R: Read,
+        {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                // Best case: we have enough data cached to read everything
+                if self.bits.read_bytes(buf) {
+                    return Ok(buf.len());
+                }
+
+                let len = buf.len();
+                let byte_offset = self.bits.is_mid_byte() as usize;
+
+                // Else we first read all the remaining bytes in the bit reader
+                let left = self.bits.approx_bytes_remaining() - byte_offset;
+                let (has, to_fill) = buf.split_at_mut(left);
+                let did_read = self.bits.read_bytes(has);
+                debug_assert!(did_read);
+
+                let read = self.inner.read(&mut self.buf[byte_offset..])?;
+                if read == 0 {
+                    return Ok(has.len());
+                }
+
+                let sl = self.buf.as_slice();
+
+                // SAFETY: As long as the vec does not reallocate, this is safe
+                let sl: &'static [u8] = unsafe { std::mem::transmute(sl) };
+
+                // SAFETY: We can unwrap as the bit reader has less than a byte left
+                let new_read = 8 - self.bits.bits_remaining().unwrap();
+                self.bits = $which::new(&sl[..read]);
+                if new_read != 8 && new_read != 0 {
+                    self.bits.read_bits(new_read as i32).unwrap();
+                }
+
+                let (has2, rest) = to_fill.split_at_mut(read.min(to_fill.len()));
+                let did_read = self.bits.read_bytes(has2);
+                debug_assert!(did_read);
+
+                Ok(len - rest.len())
+            }
+        }
     }
 }
 
-impl<R> Read for LittleEndianIoReader<R>
-where
-    R: Read,
-{
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        // Best case: we have enough data cached to read everything
-        if self.bits.read_bytes(buf) {
-            return Ok(buf.len());
-        }
+generate_bitter_io!(
+    /// Reads bits with IO in the little endian format
+    ///
+    /// See [`BitIoReader`] trait level documentation for more info.
+    LittleEndianIoReader,
+    LittleEndianReader
+);
 
-        let len = buf.len();
-        let byte_offset = self.bits.is_mid_byte() as usize;
+generate_bitter_io!(
+    /// Reads bits with IO in the big endian format
+    ///
+    /// See [`BitIoReader`] trait level documentation for more info.
+    BigEndianIoReader,
+    BigEndianReader
+);
 
-        // Else we first read all the remaining bytes in the bit reader
-        let left = self.bits.approx_bytes_remaining() - byte_offset;
-        let (has, to_fill) = buf.split_at_mut(left);
-        let did_read = self.bits.read_bytes(has);
-        debug_assert!(did_read);
+/// Read bits with IO in system native-endian format
+#[cfg(target_endian = "little")]
+pub type NativeEndianIoReader<R> = LittleEndianIoReader<R>;
 
-        let read = self.inner.read(&mut self.buf[byte_offset..])?;
-        if read == 0 {
-            return Ok(has.len());
-        }
-
-        let sl = self.buf.as_slice();
-
-        // SAFETY: As long as the vec does not reallocate, this is safe
-        let sl: &'static [u8] = unsafe { std::mem::transmute(sl) };
-
-        // SAFETY: We can unwrap as the bit reader has less than a byte left
-        let new_read = 8 - self.bits.bits_remaining().unwrap();
-        self.bits = LittleEndianReader::new(&sl[..read]);
-        if new_read != 8 && new_read != 0 {
-            self.bits.read_bits(new_read as i32).unwrap();
-        }
-
-        let (has2, rest) = to_fill.split_at_mut(read.min(to_fill.len()));
-        let did_read = self.bits.read_bytes(has2);
-        debug_assert!(did_read);
-
-        Ok(len - rest.len())
-    }
-}
+/// Read bits with IO in system native-endian format
+#[cfg(target_endian = "big")]
+pub type NativeEndianIoReader<R> = BigEndianIoReader<R>;
 
 #[cfg(test)]
 mod tests {
-    use std::io::BufReader;
-
     use super::*;
+    use std::io::BufReader;
 
     #[test]
     fn test_bit_reads() {
@@ -523,6 +655,107 @@ mod tests {
 
         for _ in 0..10 {
             assert_eq!(bitter.read_signed_bits(5).unwrap(), -4);
+        }
+    }
+}
+
+#[cfg(test)]
+mod be_tests {
+    use super::*;
+    use std::io::BufReader;
+
+    #[test]
+    fn test_whole_bytes() {
+        let data = &[
+            0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd, 0xff, 0xdd, 0xee, 0xff,
+            0xdd,
+        ][..];
+        let buffer = BufReader::with_capacity(2, data);
+        let mut reader = BigEndianIoReader::new(buffer);
+        let mut bitter = BigEndianReader::new(data);
+        assert_eq!(reader.read_u8().unwrap(), bitter.read_u8().unwrap());
+        assert_eq!(reader.read_u16().unwrap(), bitter.read_u16().unwrap());
+        assert_eq!(reader.read_u64().unwrap(), bitter.read_u64().unwrap());
+        assert_eq!(reader.read_u32().unwrap(), bitter.read_u32().unwrap(),);
+    }
+
+    #[test]
+    fn test_u32_bits() {
+        let data = &[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd][..];
+        let buffer = BufReader::with_capacity(2, data);
+        let mut reader = BigEndianIoReader::new(buffer);
+        let mut bitter = BigEndianReader::new(data);
+
+        assert_eq!(reader.read_bits(10).unwrap(), bitter.read_bits(10).unwrap());
+        assert_eq!(reader.read_bits(10).unwrap(), bitter.read_bits(10).unwrap());
+        assert_eq!(reader.read_bits(10).unwrap(), bitter.read_bits(10).unwrap());
+        assert_eq!(reader.read_bits(10).unwrap(), bitter.read_bits(10).unwrap());
+        assert_eq!(reader.read_bits(8).unwrap(), bitter.read_bits(8).unwrap());
+        assert_eq!(reader.read_bits(8).unwrap(), bitter.read_bits(8).unwrap());
+        assert_eq!(reader.read_bits(8).unwrap(), bitter.read_bits(8).unwrap());
+        assert_eq!(reader.read_bits(8).unwrap(), bitter.read_bits(8).unwrap());
+        assert_eq!(reader.read_bits(8).unwrap(), bitter.read_bits(8).unwrap());
+    }
+
+    #[test]
+    fn test_u32_bits2() {
+        let data = &[
+            0b1110_0111,
+            0b0011_1001,
+            0b1100_1110,
+            0b0111_0011,
+            0b1001_1100,
+            0b1110_0111,
+            0b0011_1001,
+            0b1100_1110,
+            0b0111_0011,
+            0b1001_1100,
+        ][..];
+
+        let buffer = BufReader::with_capacity(2, data);
+        let mut reader = BigEndianIoReader::new(buffer);
+        let mut bitter = BigEndianReader::new(data);
+        for _ in 0..16 {
+            assert_eq!(reader.read_bits(5).unwrap(), bitter.read_bits(5).unwrap());
+        }
+    }
+
+    #[test]
+    fn back_to_back_be_u64() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(0u64.to_be_bytes()));
+        data.extend_from_slice(&(1u64.to_be_bytes()));
+        let mut bits = BigEndianReader::new(data.as_slice());
+        let buffer = BufReader::with_capacity(2, data.as_slice());
+        let mut reader = BigEndianIoReader::new(buffer);
+        assert_eq!(reader.read_u64().unwrap(), bits.read_u64().unwrap());
+        assert_eq!(reader.read_u64().unwrap(), bits.read_u64().unwrap());
+    }
+
+    #[test]
+    fn back_to_back_be_u64_2() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(1u64.to_be_bytes()));
+        data.extend_from_slice(&(0u64.to_be_bytes()));
+        let mut bits = BigEndianReader::new(data.as_slice());
+        let buffer = BufReader::with_capacity(2, data.as_slice());
+        let mut reader = BigEndianIoReader::new(buffer);
+        assert_eq!(reader.read_u64().unwrap(), bits.read_u64().unwrap());
+        assert_eq!(reader.read_u64().unwrap(), bits.read_u64().unwrap());
+    }
+
+    #[test]
+    fn test_signed_bits() {
+        let data = &[0xe7, 0x39, 0xce, 0x73, 0x9C, 0xE7, 0x39, 0xC0][..];
+        let mut bitter = BigEndianReader::new(data);
+        let buffer = BufReader::with_capacity(2, data);
+        let mut reader = BigEndianIoReader::new(buffer);
+
+        for _ in 0..12 {
+            assert_eq!(
+                reader.read_signed_bits(5).unwrap(),
+                bitter.read_signed_bits(5).unwrap()
+            );
         }
     }
 }
