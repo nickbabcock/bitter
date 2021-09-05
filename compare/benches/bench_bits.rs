@@ -2,11 +2,8 @@ use bitreader::BitReader as BR;
 use bitstream_io::{BitRead, BitReader as bio_br, LittleEndian};
 use bitter;
 use bitter::{BitReader, LittleEndianReader};
+use bitvec::{field::BitField, order::Lsb0, view::BitView};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use nom::{
-    bitvec::{order::Lsb0, prelude::BitField, view::BitView},
-    take_bits,
-};
 use std::io::Cursor;
 
 static DATA: [u8; 0x10_000] = [0; 0x10_000];
@@ -61,19 +58,6 @@ fn bitting(c: &mut Criterion) {
                     }
                 }
             });
-        });
-
-        group.bench_with_input(BenchmarkId::new("nom", i), &i, |b, param| {
-            b.iter(|| {
-                let mut d = &DATA[..];
-                let mut pos = 1;
-                for _ in 0..ITER {
-                    let ((left, new_pos), _): ((&[u8], usize), u64) =
-                        take_bits!((&d[..], pos), *param as usize).unwrap();
-                    pos = new_pos;
-                    d = left;
-                }
-            })
         });
 
         group.bench_with_input(BenchmarkId::new("bitvec", i), &i, |b, param| {

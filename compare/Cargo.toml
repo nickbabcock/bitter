@@ -15,7 +15,7 @@ bitbuffer = "0.10"
 bitter = {path = ".." }
 bitreader = "0.3"
 bitstream-io = "1"
-nom = "6"
+bitvec = "0.22"
 
 [profile.release]
 lto = true
