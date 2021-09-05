@@ -536,7 +536,7 @@ pub const fn bit_width(input: u64) -> u32 {
 
 #[inline]
 fn bit_mask(bits: usize) -> u64 {
-    let mask = -1i64 as u64;
+    let mask = u64::MAX;
     let size = core::mem::size_of::<u64>() * 8;
     mask >> (size - bits)
 }
@@ -546,7 +546,7 @@ fn bit_mask_zero(bits: usize) -> u64 {
     if bits == 0 {
         0
     } else {
-        let mask = -1i64 as u64;
+        let mask = u64::MAX;
         let size = core::mem::size_of::<u64>() * 8;
         mask >> (size - bits)
     }
