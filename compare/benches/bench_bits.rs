@@ -87,6 +87,17 @@ fn bitting(c: &mut Criterion) {
                 }
             })
         });
+
+        group.bench_with_input(BenchmarkId::new("bitbuffer", i), &i, |b, param| {
+            b.iter(|| {
+                let buffer = bitbuffer::BitReadBuffer::new(&DATA[..], bitbuffer::LittleEndian);
+                let mut stream = bitbuffer::BitReadStream::new(buffer);
+                stream.skip_bits(1).unwrap();
+                for _ in 0..ITER {
+                    black_box(stream.read_bits(*param as usize).unwrap());
+                }
+            })
+        });
     }
 
     group.finish();

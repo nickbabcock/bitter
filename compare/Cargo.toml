@@ -11,6 +11,7 @@ members = ["."]
 
 [dev-dependencies]
 criterion = "0.3"
+bitbuffer = "0.10"
 bitter = {path = ".." }
 bitreader = "0.3"
 bitstream-io = "1"
