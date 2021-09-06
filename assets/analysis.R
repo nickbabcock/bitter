@@ -7,6 +7,7 @@ is_bitter <- Vectorize(function(fn) {
   switch(fn,
          "bitter-checked" = TRUE,
          "bitter-unchecked" = TRUE,
+         "bitter-io" = TRUE,
          FALSE)
 })
 
@@ -14,15 +15,16 @@ get_line_type <- Vectorize(function(fn) {
   switch(fn,
          "bitter-checked" = "bitter",
          "bitter-unchecked" = "bitter",
+         "bitter-io" = "bitter",
          "other")
 })
 
 df <- read_csv("./bitter-benchmark-data.csv")
 
 df <- mutate(df,
-             fn = `function`,
-             bitter = is_bitter(fn),
-             line = get_line_type(fn),
+             fn = gsub("bitter-", "", `function`, fixed=TRUE),
+             bitter = is_bitter(`function`),
+             line = get_line_type(`function`),
              latency = (iteration_count * 10000) / sample_measured_value,
 )
 
