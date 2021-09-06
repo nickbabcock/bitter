@@ -95,6 +95,9 @@ pub trait BitIoReader: Read {
     /// ```
     fn into_inner(self) -> Self::Inner;
 
+    /// The IO equivalent of [`BitReader::is_mid_byte`]
+    fn is_mid_byte(&self) -> bool;
+
     /// The IO equivalent of [`BitReader::read_bit`]
     fn read_bit(&mut self) -> Result<bool>;
 
@@ -199,6 +202,11 @@ macro_rules! generate_bitter_io {
 
             fn into_inner(self) -> R {
                 self.inner
+            }
+
+            #[inline]
+            fn is_mid_byte(&self) -> bool {
+                self.bits.is_mid_byte()
             }
 
             #[inline]
@@ -529,10 +537,15 @@ mod tests {
     #[test]
     fn test_u32_bits() {
         let mut bitter = LittleEndianIoReader::new(&[0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee][..]);
+        assert!(!bitter.is_mid_byte());
         assert_eq!(bitter.read_bits(10).unwrap(), 0x1ff);
+        assert!(bitter.is_mid_byte());
         assert_eq!(bitter.read_bits(10).unwrap(), 0x3b7);
+        assert!(bitter.is_mid_byte());
         assert_eq!(bitter.read_bits(10).unwrap(), 0x3fe);
+        assert!(bitter.is_mid_byte());
         assert_eq!(bitter.read_bits(10).unwrap(), 0x377);
+        assert!(!bitter.is_mid_byte());
     }
 
     #[test]
