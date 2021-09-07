@@ -910,8 +910,8 @@ generate_bitter_end!(
     /// Reads bits in the little-endian format
     ///
     /// ```rust
-    /// use bitter::{BitReader, BigEndianReader};
-    /// let mut lebits = BigEndianReader::new(&[0b1000_0000]);
+    /// use bitter::{BitReader, LittleEndianReader};
+    /// let mut lebits = LittleEndianReader::new(&[0b0000_0001]);
     /// assert_eq!(lebits.read_bit(), Some(true));
     /// ```
     LittleEndianReader,
