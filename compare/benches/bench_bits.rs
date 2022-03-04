@@ -78,7 +78,7 @@ fn bitting(c: &mut Criterion) {
                 let mut stream = bitbuffer::BitReadStream::new(buffer);
                 stream.skip_bits(1).unwrap();
                 for _ in 0..ITER {
-                    black_box(stream.read_bits(*param as usize).unwrap());
+                    black_box(stream.read_int::<u64>(*param as usize).unwrap());
                 }
             })
         });
