@@ -86,7 +86,7 @@ Takeaways:
 
 * Bitter unchecked APIs yield the greatest throughput (reads per second)
 * Bitter checked APIs cost less than half the throughput of bitter unchecked APIs
-* Bitter is at least 4x faster than other libraries
+* Bitter is the fastest Rust bit reading library
 
 ## Benchmarking
 
