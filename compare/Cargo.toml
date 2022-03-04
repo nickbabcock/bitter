@@ -16,6 +16,7 @@ bitter = {path = ".." }
 bitreader = "0.3"
 bitstream-io = "1"
 bitvec = "1"
+llvm-bitcursor = "0.0.3"
 
 [profile.release]
 lto = true

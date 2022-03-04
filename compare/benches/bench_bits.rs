@@ -82,6 +82,16 @@ fn bitting(c: &mut Criterion) {
                 }
             })
         });
+
+        group.bench_with_input(BenchmarkId::new("bitcursor", i), &i, |b, param| {
+            b.iter(|| {
+                let mut cursor = llvm_bitcursor::BitCursor::new(&DATA[..]);
+                cursor.read(1).unwrap();
+                for _ in 0..ITER {
+                    black_box(cursor.read(*param as usize).unwrap());
+                }
+            })
+        });
     }
 
     group.finish();
