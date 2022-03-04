@@ -1030,9 +1030,8 @@ impl<'a> BigEndianReader<'a> {
             self.data = &self.data[BYTE_WIDTH..];
             self.current_val = self.read();
             Some(ret)
-        } else if self.end_pos == BIT_WIDTH {
+        } else if let Some(new_data) = self.data.get(BYTE_WIDTH..) {
             let bts = core::mem::size_of::<u64>() * 8;
-            let new_data = &self.data[BYTE_WIDTH..];
             if new_data.len() < BYTE_WIDTH && self.pos > new_data.len() * 8 {
                 None
             } else {
@@ -1067,8 +1066,7 @@ impl<'a> BigEndianReader<'a> {
             let res = (self.current_val >> (BIT_WIDTH - new_pos)) & bit_mask(bts);
             self.pos = new_pos;
             Some(res)
-        } else if self.end_pos == BIT_WIDTH {
-            let new_data = &self.data[BYTE_WIDTH..];
+        } else if let Some(new_data) = self.data.get(BYTE_WIDTH..) {
             let left = new_pos - BIT_WIDTH;
             if new_data.len() < BYTE_WIDTH && left > new_data.len() * 8 {
                 None
