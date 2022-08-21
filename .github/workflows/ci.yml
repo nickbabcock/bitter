@@ -33,7 +33,7 @@ jobs:
         include:
         - build: pinned
           os: ubuntu-latest
-          rust: 1.40.0
+          rust: 1.48.0
         - build: stable
           os: ubuntu-latest
           rust: stable
@@ -102,6 +102,5 @@ jobs:
       if: matrix.build == 'nightly'
       run: |
         cargo install cargo-fuzz
-        cargo fuzz build fuzz_endian
         cargo fuzz build fuzz_simple
 

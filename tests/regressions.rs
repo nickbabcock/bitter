@@ -53,42 +53,6 @@ fn read_byte_eq2() {
 }
 
 #[test]
-fn read_byte_le_unchecked() {
-    let data = vec![1, 0, 0, 0, 0, 0, 0, 0, 0];
-    let mut lebits = LittleEndianReader::new(data.as_slice());
-
-    assert_eq!(lebits.read_u8_unchecked(), 1);
-    assert_eq!(lebits.read_u8_unchecked(), 0);
-    assert_eq!(lebits.read_u8_unchecked(), 0);
-    assert_eq!(lebits.read_u8_unchecked(), 0);
-    assert_eq!(lebits.read_u8_unchecked(), 0);
-    assert_eq!(lebits.read_u8_unchecked(), 0);
-    assert_eq!(lebits.read_u8_unchecked(), 0);
-    assert_eq!(lebits.read_u8_unchecked(), 0);
-    assert_eq!(lebits.read_u8_unchecked(), 0);
-
-    assert!(lebits.is_empty());
-}
-
-#[test]
-fn read_byte_be_unchecked() {
-    let data = vec![1, 0, 0, 0, 0, 0, 0, 0, 0];
-    let mut bits = BigEndianReader::new(data.as_slice());
-
-    assert_eq!(bits.read_u8_unchecked(), 1);
-    assert_eq!(bits.read_u8_unchecked(), 0);
-    assert_eq!(bits.read_u8_unchecked(), 0);
-    assert_eq!(bits.read_u8_unchecked(), 0);
-    assert_eq!(bits.read_u8_unchecked(), 0);
-    assert_eq!(bits.read_u8_unchecked(), 0);
-    assert_eq!(bits.read_u8_unchecked(), 0);
-    assert_eq!(bits.read_u8_unchecked(), 0);
-    assert_eq!(bits.read_u8_unchecked(), 0);
-
-    assert!(bits.is_empty());
-}
-
-#[test]
 fn read_byte_be() {
     let data = vec![1, 0, 0, 0, 0, 0, 0, 0, 0];
     let mut bits = BigEndianReader::new(data.as_slice());
@@ -104,33 +68,6 @@ fn read_byte_be() {
     assert_eq!(bits.read_u8(), Some(0));
 
     assert!(bits.is_empty());
-}
-
-#[test]
-fn read_byte_eq_unchecked() {
-    let data = vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
-    let mut lebits = LittleEndianReader::new(data.as_slice());
-    let mut bebits = BigEndianReader::new(data.as_slice());
-
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-    assert_eq!(lebits.read_u8_unchecked(), bebits.read_u8_unchecked());
-
-    assert!(lebits.is_empty());
-    assert!(bebits.is_empty());
 }
 
 #[test]

@@ -1,3 +1,12 @@
+## 0.6.0 - 2022-08-31
+
+See PR #21 for more details, but this is a large and breaking change in the name more performance! The short of it:
+
+- Bit reads now capped at 56 bits
+- Most unchecked method have been removed
+- Users now can manually control when to trigger lookahead buffer refills to best take advantage of patterns in their data
+- MSRV bumped to 1.48.0
+
 ## 0.5.1 - 2021-07-11
 
 - Mark remaining non-generic functions as inline

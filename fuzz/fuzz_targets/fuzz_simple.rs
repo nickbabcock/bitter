@@ -1,8 +1,10 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
-use bitter::{LittleEndianReader, BitReader};
+use bitter::{LittleEndianReader, BigEndianReader, BitReader};
 
 fuzz_target!(|data: &[u8]| {
+    let size = LittleEndianReader::new(data).read_u32().unwrap_or(0);
+
     let mut bits = LittleEndianReader::new(data);
 
     loop {
@@ -10,5 +12,48 @@ fuzz_target!(|data: &[u8]| {
             assert!(!bits.has_bits_remaining(17));
             break;
         }
+    }
+
+    let mut lebits = LittleEndianReader::new(data);
+    let mut bebits = BigEndianReader::new(data);
+    for &i in data {
+        assert_eq!(lebits.read_u8().unwrap(), i);
+        assert_eq!(bebits.read_u8().unwrap(), i);
+    }
+
+    assert_eq!(lebits.read_u8(), None);
+    assert_eq!(bebits.read_u8(), None);
+    assert!(lebits.is_empty());
+    assert!(bebits.is_empty());
+
+    let mut bitter = LittleEndianReader::new(data);
+    let mut len = bitter.refill_lookahead();
+    let mut i = 0;
+    while len != 0 {
+        let read = (i % 56 + 1) % len as u32 + 1;
+        i += 1;
+        bitter.peek(read);
+        bitter.consume(read);
+        len -= read;
+        if len == 0 {
+            len = bitter.refill_lookahead();
+        }
+    }
+
+    use bitstream_io::BitRead;
+
+    let bits = (size % bitter::MAX_READ_BITS) + 1;
+    let mut io = bitstream_io::BitReader::endian(data, bitstream_io::LittleEndian);
+    let mut bitter = LittleEndianReader::new(&data);
+
+    while bitter.has_bits_remaining(bits as usize) {
+        assert_eq!(io.read(bits).ok(), bitter.read_bits(bits))
+    }
+
+    let mut io = bitstream_io::BitReader::endian(data, bitstream_io::BigEndian);
+    let mut bitter = BigEndianReader::new(&data);
+
+    while bitter.has_bits_remaining(bits as usize) {
+        assert_eq!(io.read(bits).ok(), bitter.read_bits(bits))
     }
 });
