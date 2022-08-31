@@ -2,7 +2,7 @@
 
 ***Reading bits until the bitter end***
 
-Bitter reads bits in a desired endian format platform agonistically. Performance is the distinguishing feature compared to other bit readers. See [benchmarks](https://github.com/nickbabcock/bitter#comparison-to-other-libraries) for more information.
+Bitter reads bits in a desired endian format platform agnostically. Performance is the distinguishing feature compared to other bit readers. See [benchmarks](https://github.com/nickbabcock/bitter#comparison-to-other-libraries) for more information.
 
 ## Features
 
