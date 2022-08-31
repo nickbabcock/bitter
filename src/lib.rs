@@ -132,7 +132,8 @@ let object_bits = 56;
 let bitter_padding = 64;
 
 // make sure we have enough data to read all our objects and there is enough
-// data leftover so
+// data leftover so bitter can unalign read 8 bytes without fear of reading past
+// the end of the buffer.
 if bits.has_bits_remaining(objects_to_read * object_bits + bitter_padding) {
     for _ in 0..objects_to_read {
         unsafe { bits.refill_lookahead_unchecked() };
