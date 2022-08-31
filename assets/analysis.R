@@ -5,14 +5,16 @@ library(ggnewscale)
 
 is_bitter <- Vectorize(function(fn) {
   switch(fn,
-         "bitter-checked" = TRUE,
+         "bitter-auto" = TRUE,
+         "bitter-manual" = TRUE,
          "bitter-unchecked" = TRUE,
          FALSE)
 })
 
 get_line_type <- Vectorize(function(fn) {
   switch(fn,
-         "bitter-checked" = "bitter",
+         "bitter-auto" = "bitter",
+         "bitter-manual" = "bitter",
          "bitter-unchecked" = "bitter",
          "other")
 })
