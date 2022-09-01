@@ -183,8 +183,9 @@ fn _test_bit_reads2<T: BitReader>(mut bitter: T, bits: u32) {
             len == MAX_READ_BITS
         );
 
-        bitter.peek(chunk);
+        let res = bitter.peek(chunk);
         bitter.consume(chunk);
+        bitter::sign_extend(res, len);
     }
 }
 
