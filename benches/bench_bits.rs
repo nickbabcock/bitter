@@ -354,6 +354,43 @@ fn read_bytes(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bitting, read_bytes, real_world1, real_world2,);
+fn signed(c: &mut Criterion) {
+    let mut group = c.benchmark_group("signed_reads");
+
+    let bits_to_read = 33;
+    group.throughput(Throughput::Bytes((bits_to_read as u64 * ITER) / 8));
+
+    group.bench_function("auto", |b| {
+        b.iter(|| {
+            let mut bits = LittleEndianReader::new(&DATA[..]);
+            for _ in 0..ITER {
+                black_box(bits.read_signed_bits(bits_to_read));
+            }
+        })
+    });
+
+    group.bench_function("manual", |b| {
+        b.iter(|| {
+            let mut bits = LittleEndianReader::new(&DATA[..]);
+            for _ in 0..ITER {
+                let _len = bits.refill_lookahead();
+                let val = bits.peek(bits_to_read);
+                bits.consume(bits_to_read);
+                black_box(bitter::sign_extend(val, bits_to_read));
+            }
+        })
+    });
+
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bitting,
+    read_bytes,
+    real_world1,
+    real_world2,
+    signed
+);
 
 criterion_main!(benches);

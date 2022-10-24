@@ -418,13 +418,6 @@ pub trait BitReader {
     fn byte_aligned(&self) -> bool;
 }
 
-#[inline]
-fn bit_mask(bits: usize) -> u64 {
-    let mask = u64::MAX;
-    let size = core::mem::size_of::<u64>() * 8;
-    mask >> (size - bits)
-}
-
 const BYTE_WIDTH: usize = core::mem::size_of::<u64>();
 const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 
@@ -489,14 +482,7 @@ macro_rules! base_bit_reader {
 
         #[inline]
         fn read_signed_bits(&mut self, bits: u32) -> Option<i64> {
-            let bts = bits as usize;
-            self.read_bits(bits).map(|x| {
-                if x.leading_zeros() == (BIT_WIDTH - bts) as u32 {
-                    (x as i64) - (bit_mask(bts) + 1) as i64
-                } else {
-                    x as i64
-                }
-            })
+            self.read_bits(bits).map(|x| sign_extend(x, bits))
         }
 
         #[inline]
@@ -807,6 +793,35 @@ pub type NativeEndianReader<'a> = LittleEndianReader<'a>;
 /// Read bits in system native-endian format
 #[cfg(target_endian = "big")]
 pub type NativeEndianReader<'a> = BigEndianReader<'a>;
+
+/// Arbitrary sign extension for manual mode API.
+/// 
+/// See [`BitReader::read_signed_bits`](BitReader::read_signed_bits) for more
+/// information
+/// 
+/// It is assumed the input value has zeros for bits above the given position.  
+/// 
+/// ```rust
+/// use bitter::{BitReader, LittleEndianReader};
+/// let mut bits = LittleEndianReader::new(&[0x9c]);
+/// bits.refill_lookahead();
+/// let bits_to_read = 4;
+/// let value = bits.peek(bits_to_read);
+/// assert_eq!(value, 12);
+/// assert_eq!(bitter::sign_extend(value, bits_to_read), -4);
+/// bits.consume(bits_to_read);
+/// ```
+#[inline]
+pub fn sign_extend(val: u64, bits: u32) -> i64 {
+    // Branchless sign extension from bit twiddling hacks:
+    // https://graphics.stanford.edu/~seander/bithacks.html#VariableSignExtend
+    //
+    // The 3 operation approach with division turned out to be significantly slower,
+    // and so was not used.
+    debug_assert!(val.leading_zeros() >= (BIT_WIDTH as u32 - bits));
+    let m = 1i64.wrapping_shl(bits.wrapping_sub(1));
+    ((val as i64) ^ m) - m
+}
 
 #[cfg(test)]
 mod tests {
