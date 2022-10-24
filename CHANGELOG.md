@@ -1,3 +1,9 @@
+## 0.6.1 - 2022-10-24
+
+- Performance improvement for `read_signed_bits` with branchless sign extension
+- Expose `bitter:sign_extend` for those who want sign extension with manual mode
+- Clearer error message for `peek(0)`
+
 ## 0.6.0 - 2022-08-31
 
 See PR #21 for more details, but this is a large and breaking change in the name more performance! The short of it:
