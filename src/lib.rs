@@ -552,6 +552,7 @@ macro_rules! base_bit_reader {
 
         #[inline]
         fn peek(&self, count: u32) -> u64 {
+            debug_assert!(count > 0, "peeked zero bits");
             debug_assert!(
                 count <= MAX_READ_BITS && count <= self.bit_count,
                 "peeking too much data"
