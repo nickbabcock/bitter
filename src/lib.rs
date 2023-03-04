@@ -706,7 +706,7 @@ macro_rules! generate_bitter_end {
                     // (and Fabien stresses branchless lookahead several times),
                     // but I've found that including this branch on the real
                     // world benchmarks yields 30-50% throughput increase. This
-                    // is could be hardware dependent, but if a use case is was
+                    // could be hardware dependent, but if a use case is
                     // negatively affected by this decision, it is probably
                     // better off using the manual method anyways.
                     if count > self.bit_count {
@@ -795,12 +795,12 @@ pub type NativeEndianReader<'a> = LittleEndianReader<'a>;
 pub type NativeEndianReader<'a> = BigEndianReader<'a>;
 
 /// Arbitrary sign extension for manual mode API.
-/// 
+///
 /// See [`BitReader::read_signed_bits`](BitReader::read_signed_bits) for more
 /// information
-/// 
+///
 /// It is assumed the input value has zeros for bits above the given position.  
-/// 
+///
 /// ```rust
 /// use bitter::{BitReader, LittleEndianReader};
 /// let mut bits = LittleEndianReader::new(&[0x9c]);
