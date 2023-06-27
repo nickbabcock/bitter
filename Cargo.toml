@@ -24,6 +24,6 @@ name = "bench_bits"
 harness = false
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = { version = "0.5", features = ["csv_output"] }
 quickcheck = "1"
 quickcheck_macros = "1"

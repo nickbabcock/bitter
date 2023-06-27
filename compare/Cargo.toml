@@ -10,7 +10,7 @@ publish = false
 members = ["."]
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = { version = "0.5", features = ["csv_output"] }
 bitbuffer = "0.10"
 bitter = {path = ".." }
 bitreader = "0.3"
