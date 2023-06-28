@@ -15,15 +15,6 @@ edition = "2018"
 default = ["std"]
 std = []
 
-[profile.bench]
-lto = true
-codegen-units = 1
-
-[[bench]]
-name = "bench_bits"
-harness = false
-
 [dev-dependencies]
-criterion = { version = "0.5", features = ["csv_output"] }
 quickcheck = "1"
 quickcheck_macros = "1"
