@@ -451,7 +451,7 @@ macro_rules! base_reader {
     ($which:ident) => {
         #[inline]
         unsafe fn read(&mut self) -> u64 {
-            core::ptr::read_unaligned(self.bit_ptr as *const u64).$which()
+            self.bit_ptr.cast::<u64>().read_unaligned().$which()
         }
 
         #[inline]
@@ -611,6 +611,7 @@ macro_rules! generate_bitter_end {
 
         impl<'a> $name<'a> {
             #[inline]
+            #[must_use]
             pub fn new(data: &'a [u8]) -> Self {
                 let input_marker = data.len().saturating_sub(7);
                 let rng = data.as_ptr_range();
@@ -657,10 +658,10 @@ macro_rules! generate_bitter_end {
 
             #[inline]
             unsafe fn read_eof(&mut self) -> u64 {
-                let mut result: u64 = 0;
+                let mut result = [0u8; 8];
                 let len = self.unbuffered_bytes();
-                core::ptr::copy_nonoverlapping(self.bit_ptr, &mut result as *mut u64 as *mut u8, len);
-                result.$which()
+                self.bit_ptr.copy_to_nonoverlapping(result.as_mut_ptr(), len);
+                u64::from_ne_bytes(result).$which()
             }
 
             // End of buffer checking is a fascinating topic, see:
@@ -812,15 +813,18 @@ pub type NativeEndianReader<'a> = BigEndianReader<'a>;
 /// bits.consume(bits_to_read);
 /// ```
 #[inline]
+#[must_use]
 pub fn sign_extend(val: u64, bits: u32) -> i64 {
     // Branchless sign extension from bit twiddling hacks:
     // https://graphics.stanford.edu/~seander/bithacks.html#VariableSignExtend
     //
     // The 3 operation approach with division turned out to be significantly slower,
     // and so was not used.
-    debug_assert!(val.leading_zeros() >= (BIT_WIDTH as u32 - bits));
+    debug_assert!(val.leading_zeros() as usize >= (BIT_WIDTH - bits as usize));
     let m = 1i64.wrapping_shl(bits.wrapping_sub(1));
-    ((val as i64) ^ m) - m
+    #[allow(clippy::cast_possible_wrap)]
+    let val = val as i64;
+    (val ^ m) - m
 }
 
 #[cfg(test)]
