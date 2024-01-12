@@ -149,6 +149,77 @@ fn test_read_bytes(mut data: Vec<u8>) {
 }
 
 #[quickcheck]
+fn test_read_bytes_large(mut data: Vec<u8>, buf_len: u8) {
+    let buf_len = buf_len.saturating_add(75);
+    let mut buf = vec![0u8; usize::from(buf_len)];
+    if data.len() < buf.len() + 1 {
+        let mut bitter = LittleEndianReader::new(&data);
+        assert!(bitter.read_bytes(&mut buf[..data.len()]));
+        assert_eq!(&buf[..data.len()], &data);
+        return;
+    }
+
+    data[0] = 0b0000_0101;
+    data[1] &= 0b1111_1110; // turn off low bit for bit read
+    data[6] = 0b0000_1000;
+    data[7] = 0b0000_0010;
+    data[8] = 0b0000_0011;
+    data[9] &= 0b1111_1110; // turn off low bit for bit read
+    data[28] = 0b0000_0000;
+    data[29] = 0b1111_1111;
+    data[74] = 0b1000_0000;
+    data[75] = 0b1011_1111;
+
+    let mut bitter = LittleEndianReader::new(&data);
+    assert_eq!(bitter.read_u8(), Some(0b0000_0101));
+    assert!(bitter.read_bytes(&mut buf));
+    assert_eq!(buf[5], 0b0000_1000);
+    assert_eq!(buf[6], 0b0000_0010);
+    assert_eq!(buf[7], 0b0000_0011);
+    assert_eq!(buf[27], 0b0000_0000);
+    assert_eq!(buf[28], 0b1111_1111);
+    assert_eq!(buf[73], 0b1000_0000);
+    assert_eq!(buf[74], 0b1011_1111);
+
+    let mut bitter = LittleEndianReader::new(&data);
+    assert_eq!(bitter.read_bit(), Some(true));
+    assert!(bitter.read_bytes(&mut buf));
+    assert_eq!(buf[0], 0b0000_0010);
+    assert_eq!(buf[6], 0b0000_0100);
+    assert_eq!(buf[7], 0b1000_0001);
+    assert_eq!(buf[8], 0b0000_0001);
+    assert_eq!(buf[28], 0b1000_0000);
+    assert_eq!(buf[74], 0b1100_0000);
+}
+
+#[quickcheck]
+fn test_read_bytes_equiv(data: Vec<u8>, buf_len: u8, shift: u8) {
+    let mut buf1 = vec![0u8; usize::from(buf_len)];
+    let mut buf2 = vec![0u8; usize::from(buf_len)];
+
+    let mut bitter1 = LittleEndianReader::new(&data);
+    let mut bitter2 = LittleEndianReader::new(&data);
+
+    let shift = shift as u32 % 56;
+    if shift != 0 {
+        assert_eq!(bitter1.read_bits(shift), bitter2.read_bits(shift));
+    }
+
+    if !bitter1.has_bits_remaining(buf1.len() * 8) {
+        assert!(!bitter1.read_bytes(&mut buf1));
+        return;
+    }
+
+    for x in buf1.iter_mut() {
+        *x = bitter1.read_u8().unwrap();
+    }
+
+    assert!(bitter2.read_bytes(&mut buf2));
+    assert_eq!(buf1.as_slice(), buf2.as_slice());
+    assert_eq!(bitter1.read_u8(), bitter2.read_u8());
+}
+
+#[quickcheck]
 fn read_bytes_eq(k1: u8, data: Vec<u8>) -> bool {
     let mut bits = LittleEndianReader::new(data.as_slice());
     let mut buf = vec![0u8; usize::from(k1)];
