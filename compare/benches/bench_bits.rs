@@ -399,26 +399,31 @@ fn real_world2(c: &mut Criterion) {
 fn read_bytes(c: &mut Criterion) {
     let mut group = c.benchmark_group("read_bytes");
 
-    group.bench_function("aligned", |b| {
-        b.iter(|| {
-            let mut buf = [0u8; 7];
-            let mut bitter = LittleEndianReader::new(&DATA[..]);
-            for _ in 0..ITER {
-                black_box(bitter.read_bytes(&mut buf));
-            }
-        })
-    });
+    for i in &[5, 20, 80, 240, 960] {
+        let iterations = DATA.len() / *i;
+        group.throughput(Throughput::Bytes((iterations * *i) as u64));
 
-    group.bench_function("unaligned", |b| {
-        b.iter(|| {
-            let mut buf = [0u8; 7];
-            let mut bitter = LittleEndianReader::new(&DATA[..]);
-            bitter.read_bit();
-            for _ in 0..ITER {
-                black_box(bitter.read_bytes(&mut buf));
-            }
-        })
-    });
+        group.bench_with_input(BenchmarkId::new("aligned", i), &i, |b, param| {
+            let mut buf = vec![0u8; **param];
+            b.iter(|| {
+                let mut bitter = LittleEndianReader::new(&DATA[..]);
+                for _ in 0..iterations {
+                    assert!(black_box(bitter.read_bytes(&mut buf)));
+                }
+            })
+        });
+
+        group.bench_with_input(BenchmarkId::new("unaligned", i), &i, |b, param| {
+            let mut buf = vec![0u8; **param];
+            b.iter(|| {
+                let mut bitter = LittleEndianReader::new(&DATA[..]);
+                bitter.read_bit();
+                for _ in 0..iterations {
+                    assert!(black_box(bitter.read_bytes(&mut buf)));
+                }
+            })
+        });
+    }
 
     group.finish();
 }
