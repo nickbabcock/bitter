@@ -7,7 +7,7 @@ Bitter reads bits in a desired endian format platform agnostically. Performance 
 ## Features
 
  - ✔ support for little endian, big endian, and native endian formats
- - ✔ request an arbitrary amount of bits (up to 56 bits)
+ - ✔ request an arbitrary amount of bits (up to 56 bits) and bytes
  - ✔ ergonomic requests for common data types (eg: `u8` ... `u32`, `f32`, etc)
  - ✔ throughput exceeds 2 GiB/s for small reads (< 10 bits) and 10 GiB/s for larger reads
  - ✔ zero allocations
