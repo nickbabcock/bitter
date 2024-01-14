@@ -498,29 +498,56 @@ macro_rules! base_bit_reader {
                 return false;
             }
 
+            // Before we get to fast-path copying we need to consume as much of
+            // the lookahead buffer as we can.
+            let lookahead_consumption = lookahead_bytes.min(buf.len());
+            let (buf_lookahead, buf) = buf.split_at_mut(lookahead_consumption);
+            for dst in buf_lookahead.iter_mut() {
+                *dst = self.peek(8) as u8;
+                self.consume(8);
+            }
+
             if self.byte_aligned() {
-                let lookahead_consumption = lookahead_bytes.min(buf.len());
-                let (head, tail) = buf.split_at_mut(lookahead_consumption);
-                for dst in head.iter_mut() {
-                    *dst = self.peek(8) as u8;
-                    self.consume(8);
+                // Return if the lookahead buffer was big enough to fill everything
+                if buf.is_empty() {
+                    return true;
                 }
 
-                // One isn't supposed to consume all of `bit_count`, that's
-                // why we limit the max reads to 56 bits, but since we may
-                // have just consumed the entire lookahead, we reset some
-                // internal state.
-                if lookahead_consumption == lookahead_bytes {
-                    self.bit_buf = 0;
-                }
+                // Since we just consumed the entire lookahead (which isn't normally
+                // possible), we reset internal state.
+                self.bit_buf = 0;
 
-                let data = unsafe { core::slice::from_raw_parts(self.bit_ptr, unbuffed) };
-                let (data_head, data_tail) = data.split_at(tail.len());
-                tail.copy_from_slice(data_head);
-                self.bit_ptr = data_tail.as_ptr();
+                let data = unsafe { core::slice::from_raw_parts(self.bit_ptr, buf.len()) };
+                buf.copy_from_slice(data);
+                self.bit_ptr = unsafe { self.bit_ptr.add(buf.len()) };
                 self.refill_lookahead();
-            } else {
+            } else if let Some((first, buf)) = buf.split_first_mut() {
+                let data = unsafe { core::slice::from_raw_parts(self.bit_ptr, buf.len() + 1) };
+
+                // Consume the rest of the lookahead
+                let lookahead_remainder = self.bit_count;
+                let lookahead_tail = self.peek(lookahead_remainder) as u8;
+                self.consume(lookahead_remainder);
+
+                // lookahead now empty, but adjust overlapping data byte
+                let rem = data[0] << lookahead_remainder;
+                *first = rem + lookahead_tail;
+
+                // Then attempt to process multiple 16 bytes at once
+                let chunk_size = 16;
+                let buf_chunks = buf.len() / chunk_size;
+                let chunk_bytes = buf_chunks * chunk_size;
+
+                let (buf_body, buf) = buf.split_at_mut(chunk_bytes);
+                read_n_bytes(lookahead_remainder, data, buf_body);
+
+                // Process trailing bytes that don't fit into chunk
+                self.bit_ptr = unsafe { self.bit_ptr.add(chunk_bytes) };
+                self.bit_buf = 0;
+                self.refill_lookahead();
+                self.consume(8 - lookahead_remainder);
                 let mut len = self.refill_lookahead();
+
                 for dst in buf.iter_mut() {
                     if len == 0 {
                         len = self.refill_lookahead();
@@ -827,6 +854,18 @@ pub fn sign_extend(val: u64, bits: u32) -> i64 {
     (val ^ m) - m
 }
 
+#[inline]
+fn read_n_bytes(rem: u32, input: &[u8], out: &mut [u8]) {
+    let mask = (1 << rem) - 1;
+    let shift = 8 - rem;
+
+    for (i, o) in input.windows(2).zip(out.iter_mut()) {
+        let left_part = (i[0] >> shift) & mask;
+        let right_part = i[1] << rem;
+        *o = left_part + right_part;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -881,6 +920,60 @@ mod tests {
             bits.read_u32(),
             Some(u32::from_le_bytes([0xdd, 0xee, 0xff, 0xdd]))
         );
+    }
+
+    #[test]
+    fn test_whole_bytes_shift() {
+        let mut bits = LittleEndianReader::new(&[
+            0xdf, 0xed, 0xfe, 0xdf, 0xed, 0xae, 0xba, 0xcb, 0xdc, 0xfd, 0xdf, 0xed, 0xfe,
+            0xdf, 0x0d,
+        ]);
+
+        assert_eq!(bits.read_bits(4), Some(0x0f));
+        assert_eq!(bits.read_u16(), Some(u16::from_le_bytes([0xdd, 0xee])));
+        let mut out = [0u8; 8];
+        assert!(bits.read_bytes(&mut out));
+        assert_eq!(
+            u64::from_le_bytes(out),
+            u64::from_le_bytes([0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd, 0xff])
+        );
+        assert_eq!(
+            bits.read_u32(),
+            Some(u32::from_le_bytes([0xdd, 0xee, 0xff, 0xdd]))
+        );
+    }
+
+    #[test]
+    fn test_whole_bytes_large() {
+        let mut data = vec![0u8; 76];
+        data[0] = 0b0000_0101;
+        data[6] = 0b0000_1000;
+        data[7] = 0b0000_0010;
+        data[8] = 0b0000_0011;
+        data[28] = 0b0000_0000;
+        data[29] = 0b1111_1111;
+        data[74] = 0b1000_0000;
+        data[75] = 0b1011_1111;
+
+        let mut bitter = LittleEndianReader::new(&data);
+        assert_eq!(bitter.read_bit(), Some(true));
+
+        let mut buf = [0u8; 75];
+        assert!(bitter.read_bytes(&mut buf));
+
+        // prefix
+        assert_eq!(buf[0], 0b0000_0010);
+        assert_eq!(buf[6], 0b0000_0100);
+
+        // body
+        assert_eq!(buf[7], 0b1000_0001);
+        assert_eq!(buf[8], 0b0000_0001);
+        assert_eq!(buf[28], 0b1000_0000);
+
+        // suffix
+        assert_eq!(buf[74], 0b1100_0000);
+        assert_eq!(bitter.read_bits(7), Some(0b0101_1111));
+        assert_eq!(bitter.read_bit(), None);
     }
 
     #[test]
