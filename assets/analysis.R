@@ -28,7 +28,7 @@ df <- mutate(df,
              latency = (iteration_count * 10000) / sample_measured_value,
 )
 
-functionNames <- df %>% select(fn) %>% distinct() %>% pull()
+functionNames <- df %>% select(fn) %>% distinct() %>% pull() %>% sort(decreasing = TRUE)
 pal <- brewer.pal(length(functionNames), "Set1")
 names(pal) <- functionNames
 

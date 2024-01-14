@@ -179,7 +179,7 @@ The reason why someone would choose bitter is speed.
 
 Takeaways:
 
-* Chaining small bit reads with the manual or unchecked API allows Bitter to issue over 30 read commands _per nanosecond_
+* Chaining small bit reads with the manual or unchecked API allows Bitter to issue nearly 20 read commands _per nanosecond_
 * At any bit read size (including the emulated reads greater than 56 bits), bitter is the fastest Rust bit reading library even using the safest Auto API
 * At large read sizes, differences between the bitter APIs and the next fastest (bitbuffer) start to diminish.
 
