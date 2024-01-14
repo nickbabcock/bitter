@@ -188,7 +188,7 @@ Takeaways:
 Benchmarks are ran with the following command:
 
 ```bash
-(cd compare && cargo clean && RUSTFLAGS="-C target-cpu=native" cargo bench)
+(cd compare && cargo clean && cargo bench)
 find ./compare/target -path "*bit-reading*" -wholename "*/new/raw.csv" -print0 \
   | xargs -0 xsv cat rows > assets/bitter-benchmark-data.csv
 ```

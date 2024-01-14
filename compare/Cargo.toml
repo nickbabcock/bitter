@@ -11,10 +11,10 @@ members = ["."]
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["csv_output"] }
-bitbuffer = "0.10"
+bitbuffer = "0.10.9"
 bitter = {path = ".." }
-bitreader = "0.3"
-bitstream-io = "1"
+bitreader = "0.3.8"
+bitstream-io = "2.2.0"
 bitvec = "1"
 llvm-bitcursor = "0.0.3"
 
