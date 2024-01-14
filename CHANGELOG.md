@@ -1,3 +1,8 @@
+## 0.6.2 - 2024-01-14
+
+- `read_bytes` performance impovements: 35-40% for small reads and up to 22x for large byte unaligned reads.
+- Bitter constructors and `sign_extend` have been annotated with `#[must_use]`
+
 ## 0.6.1 - 2022-10-24
 
 - Performance improvement for `read_signed_bits` with branchless sign extension
