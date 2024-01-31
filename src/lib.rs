@@ -436,8 +436,7 @@ const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 /// If your data model doesn't fit, use multiple refills to emulate support.
 pub const MAX_READ_BITS: u32 = 56;
 
-#[doc(hidden)]
-pub struct BitterState<'a, const LE: bool> {
+struct BitterState<'a, const LE: bool> {
     /// Current lookahead buffer contents
     bit_buf: u64,
 
@@ -590,11 +589,6 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
     }
 
     #[inline]
-    fn byte_aligned(&self) -> bool {
-        self.bit_count % 8 == 0
-    }
-
-    #[inline]
     fn reset(&mut self, count: usize) {
         // Since we just consumed the entire lookahead (which isn't normally
         // possible), we reset internal state.
@@ -602,24 +596,6 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
         self.bit_ptr = unsafe { self.bit_ptr.add(count) }
     }
 }
-
-/// Reads bits in the little-endian format
-///
-/// ```rust
-/// use bitter::{BitReader, LittleEndianReader};
-/// let mut lebits = LittleEndianReader::new(&[0b0000_0001]);
-/// assert_eq!(lebits.read_bit(), Some(true));
-/// ```
-pub type LittleEndianReader<'a> = BitterState<'a, true>;
-
-/// Reads bits in the big-endian format
-///
-/// ```rust
-/// use bitter::{BitReader, BigEndianReader};
-/// let mut bebits = BigEndianReader::new(&[0b1000_0000]);
-/// assert_eq!(bebits.read_bit(), Some(true));
-/// ```
-pub type BigEndianReader<'a> = BitterState<'a, false>;
 
 macro_rules! gen_read {
     ($name:ident, $t:ty) => {
@@ -818,7 +794,245 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
 
     #[inline]
     fn byte_aligned(&self) -> bool {
-        self.byte_aligned()
+        self.bit_count % 8 == 0
+    }
+}
+
+/// Reads bits in the little-endian format
+///
+/// ```rust
+/// use bitter::{BitReader, LittleEndianReader};
+/// let mut lebits = LittleEndianReader::new(&[0b0000_0001]);
+/// assert_eq!(lebits.read_bit(), Some(true));
+/// ```
+pub struct LittleEndianReader<'a>(BitterState<'a, true>);
+
+impl<'a> LittleEndianReader<'a> {
+    #[inline]
+    #[must_use]
+    pub fn new(data: &'a [u8]) -> Self {
+        Self(BitterState::new(data))
+    }
+}
+
+impl<'a> BitReader for LittleEndianReader<'a> {
+    #[inline]
+    fn read_bit(&mut self) -> Option<bool> {
+        self.0.read_bit()
+    }
+
+    #[inline]
+    fn read_u8(&mut self) -> Option<u8> {
+        self.0.read_u8()
+    }
+
+    #[inline]
+    fn read_i8(&mut self) -> Option<i8> {
+        self.0.read_i8()
+    }
+
+    #[inline]
+    fn read_u16(&mut self) -> Option<u16> {
+        self.0.read_u16()
+    }
+
+    #[inline]
+    fn read_i16(&mut self) -> Option<i16> {
+        self.0.read_i16()
+    }
+
+    #[inline]
+    fn read_u32(&mut self) -> Option<u32> {
+        self.0.read_u32()
+    }
+
+    #[inline]
+    fn read_i32(&mut self) -> Option<i32> {
+        self.0.read_i32()
+    }
+
+    #[inline]
+    fn read_f32(&mut self) -> Option<f32> {
+        self.0.read_f32()
+    }
+
+    #[inline]
+    fn read_bits(&mut self, bits: u32) -> Option<u64> {
+        self.0.read_bits(bits)
+    }
+
+    #[inline]
+    fn read_signed_bits(&mut self, bits: u32) -> Option<i64> {
+        self.0.read_signed_bits(bits)
+    }
+
+    #[inline]
+    fn bytes_remaining(&self) -> usize {
+        self.0.bytes_remaining()
+    }
+
+    #[inline]
+    fn bits_remaining(&self) -> Option<usize> {
+        self.0.bits_remaining()
+    }
+
+    #[inline]
+    fn has_bits_remaining(&self, bits: usize) -> bool {
+        self.0.has_bits_remaining(bits)
+    }
+
+    #[inline]
+    fn read_bytes(&mut self, buf: &mut [u8]) -> bool {
+        self.0.read_bytes(buf)
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    #[inline]
+    fn peek(&self, count: u32) -> u64 {
+        self.0.peek(count)
+    }
+
+    #[inline]
+    fn consume(&mut self, count: u32) {
+        self.0.consume(count)
+    }
+
+    #[inline]
+    fn refill_lookahead(&mut self) -> u32 {
+        self.0.refill_lookahead()
+    }
+
+    #[inline]
+    unsafe fn refill_lookahead_unchecked(&mut self) {
+        self.0.refill_lookahead_unchecked()
+    }
+
+    #[inline]
+    fn byte_aligned(&self) -> bool {
+        self.0.byte_aligned()
+    }
+}
+
+/// Reads bits in the big-endian format
+///
+/// ```rust
+/// use bitter::{BitReader, BigEndianReader};
+/// let mut bebits = BigEndianReader::new(&[0b1000_0000]);
+/// assert_eq!(bebits.read_bit(), Some(true));
+/// ```
+pub struct BigEndianReader<'a>(BitterState<'a, false>);
+
+impl<'a> BigEndianReader<'a> {
+    #[inline]
+    #[must_use]
+    pub fn new(data: &'a [u8]) -> Self {
+        Self(BitterState::new(data))
+    }
+}
+
+impl<'a> BitReader for BigEndianReader<'a> {
+    #[inline]
+    fn read_bit(&mut self) -> Option<bool> {
+        self.0.read_bit()
+    }
+
+    #[inline]
+    fn read_u8(&mut self) -> Option<u8> {
+        self.0.read_u8()
+    }
+
+    #[inline]
+    fn read_i8(&mut self) -> Option<i8> {
+        self.0.read_i8()
+    }
+
+    #[inline]
+    fn read_u16(&mut self) -> Option<u16> {
+        self.0.read_u16()
+    }
+
+    #[inline]
+    fn read_i16(&mut self) -> Option<i16> {
+        self.0.read_i16()
+    }
+
+    #[inline]
+    fn read_u32(&mut self) -> Option<u32> {
+        self.0.read_u32()
+    }
+
+    #[inline]
+    fn read_i32(&mut self) -> Option<i32> {
+        self.0.read_i32()
+    }
+
+    #[inline]
+    fn read_f32(&mut self) -> Option<f32> {
+        self.0.read_f32()
+    }
+
+    #[inline]
+    fn read_bits(&mut self, bits: u32) -> Option<u64> {
+        self.0.read_bits(bits)
+    }
+
+    #[inline]
+    fn read_signed_bits(&mut self, bits: u32) -> Option<i64> {
+        self.0.read_signed_bits(bits)
+    }
+
+    #[inline]
+    fn bytes_remaining(&self) -> usize {
+        self.0.bytes_remaining()
+    }
+
+    #[inline]
+    fn bits_remaining(&self) -> Option<usize> {
+        self.0.bits_remaining()
+    }
+
+    #[inline]
+    fn has_bits_remaining(&self, bits: usize) -> bool {
+        self.0.has_bits_remaining(bits)
+    }
+
+    #[inline]
+    fn read_bytes(&mut self, buf: &mut [u8]) -> bool {
+        self.0.read_bytes(buf)
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    #[inline]
+    fn peek(&self, count: u32) -> u64 {
+        self.0.peek(count)
+    }
+
+    #[inline]
+    fn consume(&mut self, count: u32) {
+        self.0.consume(count)
+    }
+
+    #[inline]
+    fn refill_lookahead(&mut self) -> u32 {
+        self.0.refill_lookahead()
+    }
+
+    #[inline]
+    unsafe fn refill_lookahead_unchecked(&mut self) {
+        self.0.refill_lookahead_unchecked()
+    }
+
+    #[inline]
+    fn byte_aligned(&self) -> bool {
+        self.0.byte_aligned()
     }
 }
 
