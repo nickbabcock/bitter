@@ -386,7 +386,7 @@ pub trait BitReader {
     /// Refills the lookahead buffer and returns the number of bits available to
     /// consume.
     ///
-    /// The return value will be less than [`MAX_READ_BITS`](crate::MAX_READ_BITS)
+    /// The return value will be less than [`MAX_READ_BITS`]
     ///
     /// A core tenent of Manual Mode: refill / peek / consume
     fn refill_lookahead(&mut self) -> u32;
@@ -396,8 +396,7 @@ pub trait BitReader {
     /// Guard any usage with
     /// [`has_bits_remaining`](BitReader::has_bits_remaining)
     ///
-    /// There is no return value as it would always be
-    /// [`MAX_READ_BITS`](crate::MAX_READ_BITS)
+    /// There is no return value as it would always be [`MAX_READ_BITS`]
     ///
     /// # Safety
     ///
@@ -423,7 +422,7 @@ const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 
 /// The maximum number of bits available to buffer
 ///
-/// [BitReader::refill_lookahead](BitReader::refill_lookahead) returns a maximum equal to this constant.
+/// [BitReader::refill_lookahead] returns a maximum equal to this constant.
 ///
 /// Use static assertions to ensure that your data model fits within expected number of refills
 ///
@@ -824,8 +823,7 @@ pub type NativeEndianReader<'a> = BigEndianReader<'a>;
 
 /// Arbitrary sign extension for manual mode API.
 ///
-/// See [`BitReader::read_signed_bits`](BitReader::read_signed_bits) for more
-/// information
+/// See [`BitReader::read_signed_bits`] for more information
 ///
 /// It is assumed the input value has zeros for bits above the given position.  
 ///
