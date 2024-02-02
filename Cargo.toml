@@ -18,3 +18,4 @@ std = []
 [dev-dependencies]
 quickcheck = "1"
 quickcheck_macros = "1"
+no-panic = "0.1"
