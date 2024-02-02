@@ -90,6 +90,10 @@ jobs:
       if: matrix.build != 'pinned'
       run: ${{ env.CARGO }} test --verbose $TARGET
 
+    - name: No panic tests
+      if: matrix.build != 'pinned'
+      run: ${{ env.CARGO }} build --release --verbose $TARGET --example sample
+
     - name: Compile benchmarks
       if: matrix.build == 'stable'
       run: cargo bench --verbose --no-run $TARGET
