@@ -422,9 +422,10 @@ const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 
 /// The maximum number of bits available to buffer
 ///
-/// [BitReader::refill_lookahead] returns a maximum equal to this constant.
+/// [`BitReader::refill_lookahead`] returns a maximum equal to this constant.
 ///
-/// Use static assertions to ensure that your data model fits within expected number of refills
+/// Use static assertions to ensure that your data model fits within expected
+/// number of refills
 ///
 /// ```rust
 /// const _: () = assert!(
@@ -898,7 +899,7 @@ impl<'a> BitReader for LittleEndianReader<'a> {
 
     #[inline]
     fn consume(&mut self, count: u32) {
-        self.0.consume(count)
+        self.0.consume(count);
     }
 
     #[inline]
@@ -908,7 +909,7 @@ impl<'a> BitReader for LittleEndianReader<'a> {
 
     #[inline]
     unsafe fn refill_lookahead_unchecked(&mut self) {
-        self.0.refill_lookahead_unchecked()
+        self.0.refill_lookahead_unchecked();
     }
 
     #[inline]
@@ -1017,7 +1018,7 @@ impl<'a> BitReader for BigEndianReader<'a> {
 
     #[inline]
     fn consume(&mut self, count: u32) {
-        self.0.consume(count)
+        self.0.consume(count);
     }
 
     #[inline]
@@ -1027,7 +1028,7 @@ impl<'a> BitReader for BigEndianReader<'a> {
 
     #[inline]
     unsafe fn refill_lookahead_unchecked(&mut self) {
-        self.0.refill_lookahead_unchecked()
+        self.0.refill_lookahead_unchecked();
     }
 
     #[inline]
