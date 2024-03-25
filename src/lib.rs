@@ -574,7 +574,7 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
         // Since we just consumed the entire lookahead (which isn't normally
         // possible), we reset internal state.
         self.bit_buf = 0;
-        self.data = &self.data[count..];
+        self.data = unsafe { self.data.get_unchecked(count..) };
     }
 }
 
@@ -683,11 +683,14 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
                 return true;
             }
 
-            buf.copy_from_slice(&self.data[..buf.len()]);
+            unsafe {
+                buf.as_mut_ptr()
+                    .copy_from_nonoverlapping(self.data.as_ptr(), buf.len())
+            };
             self.reset(buf.len());
             self.refill_lookahead();
         } else if let Some((first, buf)) = buf.split_first_mut() {
-            let data = &self.data[..buf.len() + 1];
+            let data = unsafe { self.data.get_unchecked(..buf.len() + 1) };
 
             // Consume the rest of the lookahead
             let lookahead_remainder = self.bit_count;
