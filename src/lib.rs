@@ -478,14 +478,15 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
     }
 
     #[inline]
-    unsafe fn read(&mut self) -> u64 {
+    fn read(&mut self) -> u64 {
         debug_assert!(self.unbuffered_bytes() >= 8);
-        let result = self.data.as_ptr().cast::<u64>().read_unaligned();
-        Self::which(result)
+        let mut result = [0u8; 8];
+        result.copy_from_slice(&self.data[..8]);
+        Self::which(u64::from_ne_bytes(result))
     }
 
     #[inline]
-    unsafe fn read_eof(&mut self) -> u64 {
+    fn read_eof(&mut self) -> u64 {
         debug_assert!(self.unbuffered_bytes() < 8);
         let mut result = [0u8; 8];
         let len = self.unbuffered_bytes();
@@ -513,16 +514,23 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
     }
 
     #[inline]
-    unsafe fn refill(&mut self) {
-        self.bit_buf |= Self::shift(self.read(), self.bit_count);
+    fn refill_with(&mut self, raw: u64) -> usize {
+        self.bit_buf |= Self::shift(raw, self.bit_count);
 
         let shift = 7 - ((self.bit_count as usize >> 3) & 7);
-        self.data = self.data.get_unchecked(shift..);
         self.bit_count |= MAX_READ_BITS;
+        shift
     }
 
     #[inline]
-    unsafe fn refill_eof(&mut self) {
+    fn refill(&mut self) {
+        let raw = self.read();
+        let shift = self.refill_with(raw);
+        self.data = &self.data[shift..];
+    }
+
+    #[inline]
+    fn refill_eof(&mut self) {
         self.bit_buf |= Self::shift(self.read_eof(), self.bit_count);
 
         let left = self.unbuffered_bytes();
@@ -617,9 +625,7 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             // negatively affected by this decision, it is probably
             // better off using the manual method anyways.
             if bits > self.bit_count {
-                unsafe {
-                    self.refill();
-                }
+                self.refill();
             }
 
             let result = self.peek(bits);
@@ -627,9 +633,7 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             Some(result)
         } else if self.has_bits_remaining(bits as usize) {
             if bits > self.bit_count {
-                unsafe {
-                    self.refill_eof();
-                }
+                self.refill_eof();
             }
 
             let result = self.peek(bits);
@@ -754,19 +758,20 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
     #[inline]
     fn refill_lookahead(&mut self) -> u32 {
         if self.has_data_for_unaligned_loads() {
-            unsafe { self.refill() }
+            self.refill();
             MAX_READ_BITS
         } else {
-            unsafe {
-                self.refill_eof();
-            }
+            self.refill_eof();
             self.bit_count.min(MAX_READ_BITS)
         }
     }
 
     #[inline]
     unsafe fn refill_lookahead_unchecked(&mut self) {
-        self.refill();
+        debug_assert!(self.unbuffered_bytes() >= 8);
+        let result = self.data.as_ptr().cast::<u64>().read_unaligned();
+        let shift = self.refill_with(Self::which(result));
+        self.data = self.data.get_unchecked(shift..);
     }
 
     #[inline]

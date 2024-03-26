@@ -7,7 +7,12 @@ use std::io::Read;
 #[inline(never)]
 fn read_data(data: &[u8]) -> Option<i64> {
     let mut reader = bitter::LittleEndianReader::new(data);
-    let result = reader.read_signed_bits(27)?;
+    let mut result = reader.read_signed_bits(27)?;
+    result += i64::from(reader.read_i8()?);
+
+    reader.refill_lookahead();
+    unsafe { reader.refill_lookahead_unchecked() }
+
     let mut buf = [0u8; 10];
     if !reader.read_bytes(&mut buf) {
         return None;
