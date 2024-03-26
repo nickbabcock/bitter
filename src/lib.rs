@@ -576,14 +576,6 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
         let bytes = self.unbuffered_bytes();
         bytes >= bits || (bytes * 8 + (self.bit_count) as usize) >= bits
     }
-
-    #[inline]
-    fn reset(&mut self, count: usize) {
-        // Since we just consumed the entire lookahead (which isn't normally
-        // possible), we reset internal state.
-        self.bit_buf = 0;
-        self.data = unsafe { self.data.get_unchecked(count..) };
-    }
 }
 
 macro_rules! gen_read {
@@ -667,15 +659,18 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
     #[inline]
     fn read_bytes(&mut self, buf: &mut [u8]) -> bool {
         let lookahead_bytes = (self.bit_count >> 3) as usize;
-        let unbuffed = self.unbuffered_bytes();
-        if unbuffed + lookahead_bytes < buf.len() {
-            return false;
-        }
 
         // Before we get to fast-path copying we need to consume as much of
         // the lookahead buffer as we can.
         let lookahead_consumption = lookahead_bytes.min(buf.len());
         let (buf_lookahead, buf) = buf.split_at_mut(lookahead_consumption);
+
+        let (head, tail) = if buf.len() <= self.data.len() {
+            self.data.split_at(buf.len())
+        } else {
+            return false;
+        };
+
         for dst in buf_lookahead.iter_mut() {
             *dst = self.peek(8) as u8;
             self.consume(8);
@@ -687,22 +682,21 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
                 return true;
             }
 
-            unsafe {
-                buf.as_mut_ptr()
-                    .copy_from_nonoverlapping(self.data.as_ptr(), buf.len())
-            };
-            self.reset(buf.len());
+            buf.copy_from_slice(head);
+
+            // Since we just consumed the entire lookahead (which isn't normally
+            // possible), we reset internal state.
+            self.data = tail;
+            self.bit_buf = 0;
             self.refill_lookahead();
         } else if let Some((first, buf)) = buf.split_first_mut() {
-            let data = unsafe { self.data.get_unchecked(..buf.len() + 1) };
-
             // Consume the rest of the lookahead
             let lookahead_remainder = self.bit_count;
             let lookahead_tail = self.peek(lookahead_remainder) as u8;
             self.consume(lookahead_remainder);
 
             // lookahead now empty, but adjust overlapping data byte
-            let rem = data[0] << lookahead_remainder;
+            let rem = head[0] << lookahead_remainder;
             *first = rem + lookahead_tail;
 
             // Then attempt to process multiple 16 bytes at once
@@ -711,10 +705,11 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             let chunk_bytes = buf_chunks * chunk_size;
 
             let (buf_body, buf) = buf.split_at_mut(chunk_bytes);
-            read_n_bytes(lookahead_remainder, data, buf_body);
+            read_n_bytes(lookahead_remainder, head, buf_body);
 
             // Process trailing bytes that don't fit into chunk
-            self.reset(chunk_bytes);
+            self.data = unsafe { self.data.get_unchecked(chunk_bytes..) };
+            self.bit_buf = 0;
             self.refill_lookahead();
             self.consume(8 - lookahead_remainder);
             let mut len = self.refill_lookahead();
