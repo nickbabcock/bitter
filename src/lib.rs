@@ -438,39 +438,24 @@ const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 pub const MAX_READ_BITS: u32 = 56;
 
 struct BitterState<'a, const LE: bool> {
+    /// Pointer of next byte for lookahead
+    data: &'a [u8],
+
     /// Current lookahead buffer contents
     bit_buf: u64,
 
-    /// Pointer of next byte for lookahead
-    bit_ptr: *const u8,
-
-    /// One past the last element of the given data
-    end_ptr: *const u8,
-
-    /// Pointer to the element that marks it as no longer safe for blind
-    /// unaligned reads
-    input_marker: *const u8,
-
     /// Number of bits in buffer
     bit_count: u32,
-
-    phantom: ::core::marker::PhantomData<&'a [u8]>,
 }
 
 impl<'a, const LE: bool> BitterState<'a, LE> {
     #[inline]
     #[must_use]
     pub fn new(data: &'a [u8]) -> Self {
-        let input_marker = data.len().saturating_sub(7);
-        let rng = data.as_ptr_range();
-
         Self {
-            bit_ptr: rng.start,
-            end_ptr: rng.end,
-            input_marker: data[input_marker..].as_ptr(),
+            data,
             bit_buf: 0,
             bit_count: 0,
-            phantom: ::core::marker::PhantomData,
         }
     }
 
@@ -493,19 +478,19 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
     }
 
     #[inline]
-    unsafe fn read(&mut self) -> u64 {
+    fn read(&mut self) -> u64 {
         debug_assert!(self.unbuffered_bytes() >= 8);
-        let result = self.bit_ptr.cast::<u64>().read_unaligned();
-        Self::which(result)
+        let mut result = [0u8; 8];
+        result.copy_from_slice(&self.data[..8]);
+        Self::which(u64::from_ne_bytes(result))
     }
 
     #[inline]
-    unsafe fn read_eof(&mut self) -> u64 {
+    fn read_eof(&mut self) -> u64 {
         debug_assert!(self.unbuffered_bytes() < 8);
         let mut result = [0u8; 8];
         let len = self.unbuffered_bytes();
-        self.bit_ptr
-            .copy_to_nonoverlapping(result.as_mut_ptr(), len);
+        result[..len].copy_from_slice(self.data);
         let result = u64::from_ne_bytes(result);
         Self::which(result)
     }
@@ -529,25 +514,28 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
     }
 
     #[inline]
-    unsafe fn refill(&mut self) {
-        self.bit_buf |= Self::shift(self.read(), self.bit_count);
+    fn refill_with(&mut self, raw: u64) -> usize {
+        self.bit_buf |= Self::shift(raw, self.bit_count);
 
-        // Splitting up the bit_ptr adjustment yields a 10% throughput
-        // improvement. Adapted from zlib-dougallj:
-        // https://github.com/dougallj/zlib-dougallj/blob/315b6636bfca5797f7e7d037e29c5edd2c605e70/inffast_chunk.c#L156
-        self.bit_ptr = self.bit_ptr.add(7);
-        self.bit_ptr = self.bit_ptr.sub((self.bit_count as usize >> 3) & 7);
-
+        let shift = 7 - ((self.bit_count as usize >> 3) & 7);
         self.bit_count |= MAX_READ_BITS;
+        shift
     }
 
     #[inline]
-    unsafe fn refill_eof(&mut self) {
+    fn refill(&mut self) {
+        let raw = self.read();
+        let shift = self.refill_with(raw);
+        self.data = &self.data[shift..];
+    }
+
+    #[inline]
+    fn refill_eof(&mut self) {
         self.bit_buf |= Self::shift(self.read_eof(), self.bit_count);
 
         let left = self.unbuffered_bytes();
         let consumed = ((63 - (self.bit_count) as usize) >> 3).min(left);
-        self.bit_ptr = unsafe { self.bit_ptr.add(consumed) };
+        self.data = &self.data[consumed..];
 
         if self.unbuffered_bytes() > 0 {
             self.bit_count |= MAX_READ_BITS;
@@ -563,12 +551,12 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
     // we can't blindly unalign read 64 bits, and duplicate some behavior.
     #[inline]
     fn has_data_for_unaligned_loads(&self) -> bool {
-        self.bit_ptr < self.input_marker
+        self.data.len() >= core::mem::size_of::<u64>()
     }
 
     #[inline]
     fn unbuffered_bytes(&self) -> usize {
-        (self.end_ptr as usize) - (self.bit_ptr as usize)
+        self.data.len()
     }
 
     #[inline]
@@ -587,14 +575,6 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
     fn has_bits_remaining(&self, bits: usize) -> bool {
         let bytes = self.unbuffered_bytes();
         bytes >= bits || (bytes * 8 + (self.bit_count) as usize) >= bits
-    }
-
-    #[inline]
-    fn reset(&mut self, count: usize) {
-        // Since we just consumed the entire lookahead (which isn't normally
-        // possible), we reset internal state.
-        self.bit_buf = 0;
-        self.bit_ptr = unsafe { self.bit_ptr.add(count) }
     }
 }
 
@@ -637,9 +617,7 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             // negatively affected by this decision, it is probably
             // better off using the manual method anyways.
             if bits > self.bit_count {
-                unsafe {
-                    self.refill();
-                }
+                self.refill();
             }
 
             let result = self.peek(bits);
@@ -647,9 +625,7 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             Some(result)
         } else if self.has_bits_remaining(bits as usize) {
             if bits > self.bit_count {
-                unsafe {
-                    self.refill_eof();
-                }
+                self.refill_eof();
             }
 
             let result = self.peek(bits);
@@ -683,15 +659,18 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
     #[inline]
     fn read_bytes(&mut self, buf: &mut [u8]) -> bool {
         let lookahead_bytes = (self.bit_count >> 3) as usize;
-        let unbuffed = self.unbuffered_bytes();
-        if unbuffed + lookahead_bytes < buf.len() {
-            return false;
-        }
 
         // Before we get to fast-path copying we need to consume as much of
         // the lookahead buffer as we can.
         let lookahead_consumption = lookahead_bytes.min(buf.len());
         let (buf_lookahead, buf) = buf.split_at_mut(lookahead_consumption);
+
+        let (head, tail) = if buf.len() <= self.data.len() {
+            self.data.split_at(buf.len())
+        } else {
+            return false;
+        };
+
         for dst in buf_lookahead.iter_mut() {
             *dst = self.peek(8) as u8;
             self.consume(8);
@@ -703,21 +682,21 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
                 return true;
             }
 
-            let bit_ptr = self.bit_ptr;
-            let data = unsafe { core::slice::from_raw_parts(bit_ptr, buf.len()) };
-            buf.copy_from_slice(data);
-            self.reset(buf.len());
+            buf.copy_from_slice(head);
+
+            // Since we just consumed the entire lookahead (which isn't normally
+            // possible), we reset internal state.
+            self.data = tail;
+            self.bit_buf = 0;
             self.refill_lookahead();
         } else if let Some((first, buf)) = buf.split_first_mut() {
-            let data = unsafe { core::slice::from_raw_parts(self.bit_ptr, buf.len() + 1) };
-
             // Consume the rest of the lookahead
             let lookahead_remainder = self.bit_count;
             let lookahead_tail = self.peek(lookahead_remainder) as u8;
             self.consume(lookahead_remainder);
 
             // lookahead now empty, but adjust overlapping data byte
-            let rem = data[0] << lookahead_remainder;
+            let rem = head[0] << lookahead_remainder;
             *first = rem + lookahead_tail;
 
             // Then attempt to process multiple 16 bytes at once
@@ -726,10 +705,11 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             let chunk_bytes = buf_chunks * chunk_size;
 
             let (buf_body, buf) = buf.split_at_mut(chunk_bytes);
-            read_n_bytes(lookahead_remainder, data, buf_body);
+            read_n_bytes(lookahead_remainder, head, buf_body);
 
             // Process trailing bytes that don't fit into chunk
-            self.reset(chunk_bytes);
+            self.data = unsafe { self.data.get_unchecked(chunk_bytes..) };
+            self.bit_buf = 0;
             self.refill_lookahead();
             self.consume(8 - lookahead_remainder);
             let mut len = self.refill_lookahead();
@@ -773,19 +753,20 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
     #[inline]
     fn refill_lookahead(&mut self) -> u32 {
         if self.has_data_for_unaligned_loads() {
-            unsafe { self.refill() }
+            self.refill();
             MAX_READ_BITS
         } else {
-            unsafe {
-                self.refill_eof();
-            }
+            self.refill_eof();
             self.bit_count.min(MAX_READ_BITS)
         }
     }
 
     #[inline]
     unsafe fn refill_lookahead_unchecked(&mut self) {
-        self.refill();
+        debug_assert!(self.unbuffered_bytes() >= 8);
+        let result = self.data.as_ptr().cast::<u64>().read_unaligned();
+        let shift = self.refill_with(Self::which(result));
+        self.data = self.data.get_unchecked(shift..);
     }
 
     #[inline]
