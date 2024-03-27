@@ -490,7 +490,7 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
         debug_assert!(self.unbuffered_bytes() < 8);
         let mut result = [0u8; 8];
         let len = self.unbuffered_bytes();
-        result[..len].copy_from_slice(&self.data);
+        result[..len].copy_from_slice(self.data);
         let result = u64::from_ne_bytes(result);
         Self::which(result)
     }
