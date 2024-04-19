@@ -401,7 +401,8 @@ pub trait BitReader {
     /// # Safety
     ///
     /// This function assumes that there are at least 8 bytes left in the data
-    /// for an unaligned read. If there are less than that, there is a risk of
+    /// for an unaligned read. It is undefined behavior if there is less than 8
+    /// bytes remaining
     unsafe fn refill_lookahead_unchecked(&mut self);
 
     /// Returns true if the reader is not partway through a byte
@@ -708,6 +709,10 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             read_n_bytes(lookahead_remainder, head, buf_body);
 
             // Process trailing bytes that don't fit into chunk
+            //
+            // SAFETY: we know this is safe as chunk_bytes is <= than head.len()
+            // and head was split off from data (but the compiler isn't smart
+            // enough to deduce this and we want to avoid introducing a panic).
             self.data = unsafe { self.data.get_unchecked(chunk_bytes..) };
             self.bit_buf = 0;
             self.refill_lookahead();
