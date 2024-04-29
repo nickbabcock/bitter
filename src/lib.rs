@@ -374,12 +374,6 @@ pub trait BitReader {
     /// Consumes the number of bits from the lookahead buffer
     ///
     /// A core tenent of Manual Mode: refill / peek / consume
-    ///
-    /// # Safety
-    ///
-    /// This operation itself is always safe, but consuming more than what is
-    /// available will cause a debug assertion to be tripped and undefined
-    /// behavior in release mode.
     fn consume(&mut self, count: u32);
 
     /// Refills the lookahead buffer and returns the number of bits available to
@@ -576,6 +570,20 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
         let bytes = self.unbuffered_bytes();
         bytes >= bits || (bytes * 8 + (self.bit_count) as usize) >= bits
     }
+
+    #[inline]
+    fn bit_invariants(&self, count: u32) {
+        debug_assert!(
+            count <= MAX_READ_BITS,
+            "bit reads limted to {} bits ({} requested)",
+            MAX_READ_BITS, count
+        );
+        debug_assert!(
+            count <= self.bit_count,
+            "bit read exceeds lookahead ({} vs {} lookahead)",
+            count, self.bit_count
+        );
+    }
 }
 
 macro_rules! gen_read {
@@ -736,21 +744,13 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
     #[inline]
     fn peek(&self, count: u32) -> u64 {
         debug_assert!(count > 0, "peeked zero bits");
-        debug_assert!(
-            count <= MAX_READ_BITS && count <= self.bit_count,
-            "peeking too much data"
-        );
-
+        self.bit_invariants(count);
         self.peek_(count)
     }
 
     #[inline]
     fn consume(&mut self, count: u32) {
-        debug_assert!(
-            count <= MAX_READ_BITS && count <= self.bit_count,
-            "consumed too much data"
-        );
-
+        self.bit_invariants(count);
         self.consume_(count);
     }
 
