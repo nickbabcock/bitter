@@ -500,7 +500,8 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
         if LE {
             self.bit_buf & ((1 << count) - 1)
         } else {
-            self.bit_buf >> (BIT_WIDTH - count as usize)
+            let shr = BIT_WIDTH - count as usize;
+            self.bit_buf >> (shr & (BIT_WIDTH - 1))
         }
     }
     #[inline]
@@ -735,7 +736,6 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
 
     #[inline]
     fn peek(&self, count: u32) -> u64 {
-        debug_assert!(count > 0, "peeked zero bits");
         debug_assert!(
             count <= MAX_READ_BITS && count <= self.bit_count,
             "peeking too much data"
@@ -1110,6 +1110,22 @@ mod tests {
     }
 
     #[test]
+    fn test_zero_bit_reads() {
+        let mut bits = LittleEndianReader::new(&[0xff]);
+        assert_eq!(bits.peek(0), 0);
+        bits.consume(0);
+        assert_eq!(bits.read_bits(0), Some(0));
+
+        assert_eq!(bits.read_u8(), Some(0xff));
+        assert_eq!(bits.read_bits(0), Some(0));
+        assert_eq!(bits.peek(0), 0);
+        bits.consume(0);
+        assert_eq!(bits.peek(0), 0);
+        bits.consume(0);
+        assert_eq!(bits.read_bits(0), Some(0));
+    }
+
+    #[test]
     fn test_whole_bytes() {
         let mut bits = LittleEndianReader::new(&[
             0xff, 0xdd, 0xee, 0xff, 0xdd, 0xee, 0xaa, 0xbb, 0xcc, 0xdd, 0xff, 0xdd, 0xee, 0xff,
@@ -1420,6 +1436,22 @@ mod be_tests {
         assert_eq!(bits.read_bits(1), Some(1));
 
         assert_eq!(bits.read_bits(1), None);
+    }
+
+    #[test]
+    fn test_zero_bit_reads() {
+        let mut bits = BigEndianReader::new(&[0xff]);
+        assert_eq!(bits.peek(0), 0);
+        bits.consume(0);
+        assert_eq!(bits.read_bits(0), Some(0));
+
+        assert_eq!(bits.read_u8(), Some(0xff));
+        assert_eq!(bits.read_bits(0), Some(0));
+        assert_eq!(bits.peek(0), 0);
+        bits.consume(0);
+        assert_eq!(bits.peek(0), 0);
+        bits.consume(0);
+        assert_eq!(bits.read_bits(0), Some(0));
     }
 
     #[test]
