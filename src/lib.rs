@@ -576,6 +576,29 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
         let bytes = self.unbuffered_bytes();
         bytes >= bits || (bytes * 8 + (self.bit_count) as usize) >= bits
     }
+
+    #[cold]
+    fn read_bits_eof(&mut self, bits: u32) -> Option<u64> {
+        let to_read = self.bit_count.min(bits);
+        let result = self.peek(to_read);
+        self.consume(to_read);
+
+        if to_read == bits {
+            return Some(result);
+        }
+
+        self.refill_eof();
+
+        let next_read = bits - to_read;
+        let hi = self.peek(next_read);
+        self.consume(next_read);
+
+        if LE {
+            Some((hi << to_read) + result)
+        } else {
+            Some((result << next_read) + hi)
+        }
+    }
 }
 
 macro_rules! gen_read {
@@ -608,29 +631,27 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
     #[inline]
     fn read_bits(&mut self, bits: u32) -> Option<u64> {
         if self.has_data_for_unaligned_loads() {
-            // This branch to check if a refill is necessary is a little
-            // controversial, as this branch doesn't exist on variant 4
-            // (and Fabien stresses branchless lookahead several times),
-            // but I've found that including this branch on the real
-            // world benchmarks yields 30-50% throughput increase. This
-            // could be hardware dependent, but if a use case is
-            // negatively affected by this decision, it is probably
-            // better off using the manual method anyways.
-            if bits > self.bit_count {
-                self.refill();
+            let to_read = self.bit_count.min(bits);
+            let result = self.peek(to_read);
+            self.consume(to_read);
+
+            if to_read == bits {
+                return Some(result);
             }
 
-            let result = self.peek(bits);
-            self.consume(bits);
-            Some(result)
+            self.refill();
+
+            let next_read = bits - to_read;
+            let hi = self.peek(next_read);
+            self.consume(next_read);
+
+            if LE {
+                Some((hi << to_read) + result)
+            } else {
+                Some((result << next_read) + hi)
+            }
         } else if self.has_bits_remaining(bits as usize) {
-            if bits > self.bit_count {
-                self.refill_eof();
-            }
-
-            let result = self.peek(bits);
-            self.consume(bits);
-            Some(result)
+            self.read_bits_eof(bits)
         } else {
             None
         }
