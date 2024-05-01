@@ -12,6 +12,8 @@ fn read_data(data: &[u8]) -> Option<i64> {
 
     reader.refill_lookahead();
     unsafe { reader.refill_lookahead_unchecked() }
+    result += reader.peek(0) as i64;
+    reader.consume(0);
 
     let mut buf = [0u8; 10];
     if !reader.read_bytes(&mut buf) {
