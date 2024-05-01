@@ -508,7 +508,7 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
         if LE {
             self.bit_buf >>= count;
         } else {
-            self.bit_buf <<= count;
+            self.bit_buf <<= count; 
         }
         self.bit_count -= count;
     }
@@ -630,25 +630,33 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
 
     #[inline]
     fn read_bits(&mut self, bits: u32) -> Option<u64> {
-        if self.has_data_for_unaligned_loads() {
-            let to_read = self.bit_count.min(bits);
-            let result = self.peek(to_read);
-            self.consume(to_read);
+            if bits > self.bit_count {
+                if LE {
+                        let to_read = self.bit_count;
+                        let result = self.bit_buf;
+                        self.consume(self.bit_count);
+                        self.bit_count = 0;
+                        self.refill();
 
-            if to_read == bits {
-                return Some(result);
-            }
+                        let next_read = bits - to_read;
+                        let hi = self.peek(next_read);
+                        self.consume(next_read);
+                    Some((hi << to_read) + (result & (1 << to_read) - 1))
+                } else {
+                        let to_read = self.bit_count;
+                        let result = self.peek(to_read);
+                        self.consume(to_read);
+                        self.refill();
 
-            self.refill();
-
-            let next_read = bits - to_read;
-            let hi = self.peek(next_read);
-            self.consume(next_read);
-
-            if LE {
-                Some((hi << to_read) + result)
+                        let next_read = bits - to_read;
+                        let hi = self.peek(next_read);
+                        self.consume(next_read);
+                    Some((result << next_read) + hi)
+                }
             } else {
-                Some((result << next_read) + hi)
+                    let result = self.peek(bits);
+                    self.consume(bits);
+                    Some(result)
             }
         } else if self.has_bits_remaining(bits as usize) {
             self.read_bits_eof(bits)
