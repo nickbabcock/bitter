@@ -165,6 +165,7 @@ bits = { version = "x", default-features = false }
 
 */
 
+#![warn(missing_docs)]
 #![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
 
 /// Read bits in a given endian order
@@ -794,6 +795,7 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
 pub struct LittleEndianReader<'a>(BitterState<'a, true>);
 
 impl<'a> LittleEndianReader<'a> {
+    /// Create a little endian reader from the given byte slice.
     #[inline]
     #[must_use]
     pub fn new(data: &'a [u8]) -> Self {
@@ -913,6 +915,7 @@ impl<'a> BitReader for LittleEndianReader<'a> {
 pub struct BigEndianReader<'a>(BitterState<'a, false>);
 
 impl<'a> BigEndianReader<'a> {
+    /// Create a big endian reader from the given byte slice.
     #[inline]
     #[must_use]
     pub fn new(data: &'a [u8]) -> Self {
