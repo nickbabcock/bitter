@@ -1,4 +1,4 @@
-use bitter::{BigEndianReader, BitReader, LittleEndianReader, MAX_READ_BITS};
+use bitter::{BigEndianReader, BitReader, LittleEndianReader};
 use quickcheck::TestResult;
 use quickcheck_macros::quickcheck;
 
@@ -51,8 +51,8 @@ fn test_bit_reads_le_manual(mut data: Vec<u8>) -> TestResult {
 
     let mut bitter = LittleEndianReader::new(&data);
 
-    let buffered = bitter.refill_lookahead();
-    assert!(buffered >= 16);
+    bitter.refill_lookahead();
+    assert!(bitter.lookahead_bits() >= 16);
     assert!(bitter.has_bits_remaining(data.len() * 8));
     assert!(!bitter.has_bits_remaining(data.len() * 8 + 1));
     assert_eq!(bitter.peek(1), 0);
@@ -92,10 +92,8 @@ fn test_bit_reads_le_manual(mut data: Vec<u8>) -> TestResult {
 
     assert!(bitter.has_bits_remaining((data.len() - 2) * 8));
     assert!(!bitter.has_bits_remaining((data.len() - 2) * 8 + 1));
-    assert_eq!(
-        bitter.refill_lookahead() as usize,
-        ((data.len() - 2) * 8).min(56)
-    );
+    bitter.refill_lookahead();
+    assert!(bitter.lookahead_bits() as usize <= ((data.len() - 2) * 8),);
 
     TestResult::passed()
 }
@@ -245,18 +243,20 @@ fn test_bit_reads(data: Vec<u8>) {
 }
 
 fn _test_bit_reads2<T: BitReader>(mut bitter: T, bits: u32) {
-    let chunk = bits % 56 + 1;
+    let chunk = bits % 64 + 1;
     while bitter.has_bits_remaining(chunk as usize) {
-        let len = bitter.refill_lookahead();
-        assert!(len <= MAX_READ_BITS && len >= chunk);
-        assert_eq!(
-            bitter.has_bits_remaining(bitter::MAX_READ_BITS as usize),
-            len == MAX_READ_BITS
-        );
+        let mut chunk_remaining = chunk;
+        while chunk_remaining > 0 {
+            if bitter.lookahead_bits() == 0 {
+                bitter.refill_lookahead();
+            }
 
-        let res = bitter.peek(chunk);
-        bitter.consume(chunk);
-        let _ = bitter::sign_extend(res, len);
+            let to_read = bitter.lookahead_bits().min(chunk_remaining);
+            let res = bitter.peek(to_read);
+            bitter.consume(to_read);
+            let _ = bitter::sign_extend(res, to_read);
+            chunk_remaining -= to_read;
+        }
     }
 }
 
