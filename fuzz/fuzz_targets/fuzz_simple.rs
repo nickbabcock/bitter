@@ -1,6 +1,6 @@
 #![no_main]
+use bitter::{BigEndianReader, BitReader, LittleEndianReader};
 use libfuzzer_sys::fuzz_target;
-use bitter::{LittleEndianReader, BigEndianReader, BitReader};
 
 fuzz_target!(|data: &[u8]| {
     let size = LittleEndianReader::new(data).read_u32().unwrap_or(0);
@@ -27,16 +27,14 @@ fuzz_target!(|data: &[u8]| {
     assert!(bebits.is_empty());
 
     let mut bitter = LittleEndianReader::new(data);
-    let mut len = bitter.refill_lookahead();
     let mut i = 0;
-    while len != 0 {
-        let read = (i % 56 + 1) % len as u32 + 1;
+    while bitter.lookahead_bits() != 0 {
+        let read = (i % 56 + 1) % bitter.lookahead_bits() as u32 + 1;
         i += 1;
         bitter.peek(read);
         bitter.consume(read);
-        len -= read;
-        if len == 0 {
-            len = bitter.refill_lookahead();
+        if bitter.lookahead_bits() == 0 {
+            bitter.refill_lookahead();
         }
     }
 

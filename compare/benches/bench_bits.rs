@@ -10,6 +10,27 @@ static DATA: [u8; 0x10_000] = [0; 0x10_000];
 
 const ITER: u64 = 1000;
 
+// It may seem like cheating to pass in a constant used for loop unrolling, but
+// the whole point of manual and unchecked mode is that one can write code that
+// can exploit data patterns and this was a good compromise. This could have
+// been cranked up to 11 and have the amount of bits be a constant propagated
+// into here, but that seemed unfair.
+fn bit_reading<const N: u32, const UNCHECKED: bool, T: BitReader>(mut bitter: T, bits: u32) {
+    let iterations = ITER / N as u64;
+    for _ in 0..iterations {
+        if UNCHECKED {
+            unsafe { bitter.refill_lookahead_unchecked() }
+        } else {
+            bitter.refill_lookahead()
+        };
+
+        for _ in 0..N {
+            black_box(bitter.peek(bits));
+            bitter.consume(bits);
+        }
+    }
+}
+
 fn bitting(c: &mut Criterion) {
     let parameters: Vec<u32> = (1..65).collect();
 
@@ -40,70 +61,33 @@ fn bitting(c: &mut Criterion) {
             b.iter(|| {
                 let mut bitter = LittleEndianReader::new(&DATA[..]);
                 bitter.read_bits(1);
-                const X1: u32 = bitter::MAX_READ_BITS / 4;
-                const X11: u32 = X1 + 1;
-                const X2: u32 = bitter::MAX_READ_BITS / 2;
-                const X21: u32 = X2 + 1;
                 match *param {
-                    x @ 0..=X1 => {
-                        let runs = x * 4;
-                        let mut len = bitter.refill_lookahead();
-                        for _ in 0..(ITER / 4) {
-                            if len < runs {
-                                len = bitter.refill_lookahead();
-                            }
-
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-                            len -= runs;
-                        }
-                    }
-                    x @ X11..=X2 => {
-                        let runs = x * 2;
-                        let mut len = bitter.refill_lookahead();
-                        for _ in 0..(ITER / 2) {
-                            if len < runs {
-                                len = bitter.refill_lookahead();
-                            }
-
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-
-                            len -= runs;
-                        }
-                    }
-                    x @ X21..=bitter::MAX_READ_BITS => {
-                        for _ in 0..ITER {
-                            bitter.refill_lookahead();
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-                        }
-                    }
+                    1..=3 => bit_reading::<16, false, _>(bitter, *param),
+                    4..=7 => bit_reading::<8, false, _>(bitter, *param),
+                    8..=14 => bit_reading::<4, false, _>(bitter, *param),
+                    15..=28 => bit_reading::<2, false, _>(bitter, *param),
+                    29..=56 => bit_reading::<1, false, _>(bitter, *param),
                     x => {
                         for _ in 0..ITER {
+                            let lo_len = bitter.lookahead_bits();
+                            let lo = bitter.peek(lo_len);
+                            bitter.consume(lo_len);
+
                             bitter.refill_lookahead();
-                            let lo = bitter.peek(bitter::MAX_READ_BITS);
-                            bitter.consume(bitter::MAX_READ_BITS);
+                            let left = x - lo_len;
+                            let hi_len = bitter.lookahead_bits().min(left);
+                            let hi = bitter.peek(hi_len);
+                            bitter.consume(hi_len);
 
-                            let hi_bits = x - bitter::MAX_READ_BITS;
-                            bitter.refill_lookahead();
-
-                            let hi = bitter.peek(hi_bits);
-                            bitter.consume(hi_bits);
-
-                            black_box((hi << bitter::MAX_READ_BITS) + lo);
+                            if hi_len == left {
+                                black_box((hi << lo_len) + lo);
+                            } else {
+                                bitter.refill_lookahead();
+                                let left = x - lo_len - hi_len;
+                                let hi2 = bitter.peek(left);
+                                bitter.consume(left);
+                                black_box((hi2 << (lo_len + hi_len)) + (hi << lo_len) + lo);
+                            }
                         }
                     }
                 }
@@ -114,76 +98,33 @@ fn bitting(c: &mut Criterion) {
             b.iter(|| {
                 let mut bitter = LittleEndianReader::new(&DATA[..]);
                 bitter.read_bits(1);
-
-                const X1: u32 = bitter::MAX_READ_BITS / 4;
-                const X11: u32 = X1 + 1;
-                const X2: u32 = bitter::MAX_READ_BITS / 2;
-                const X21: u32 = X2 + 1;
                 match *param {
-                    x @ 0..=X1 => {
-                        let runs = x * 4;
-                        unsafe { bitter.refill_lookahead_unchecked() }
-                        let mut len = bitter::MAX_READ_BITS;
-                        for _ in 0..(ITER / 4) {
-                            if len < runs {
-                                unsafe { bitter.refill_lookahead_unchecked() }
-                                len = bitter::MAX_READ_BITS;
-                            }
-
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-                            len -= runs;
-                        }
-                    }
-                    x @ X11..=X2 => {
-                        let runs = x * 2;
-                        unsafe { bitter.refill_lookahead_unchecked() }
-                        let mut len = bitter::MAX_READ_BITS;
-                        for _ in 0..(ITER / 2) {
-                            if len < runs {
-                                unsafe { bitter.refill_lookahead_unchecked() }
-                                len = bitter::MAX_READ_BITS;
-                            }
-
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-
-                            len -= runs;
-                        }
-                    }
-                    x @ X21..=bitter::MAX_READ_BITS => {
-                        for _ in 0..ITER {
-                            unsafe { bitter.refill_lookahead_unchecked() }
-                            black_box(bitter.peek(x));
-                            bitter.consume(x);
-                        }
-                    }
+                    1..=3 => bit_reading::<16, true, _>(bitter, *param),
+                    4..=7 => bit_reading::<8, true, _>(bitter, *param),
+                    8..=14 => bit_reading::<4, true, _>(bitter, *param),
+                    15..=28 => bit_reading::<2, true, _>(bitter, *param),
+                    29..=56 => bit_reading::<1, true, _>(bitter, *param),
                     x => {
                         for _ in 0..ITER {
-                            unsafe { bitter.refill_lookahead_unchecked() }
+                            let lo_len = bitter.lookahead_bits();
+                            let lo = bitter.peek(lo_len);
+                            bitter.consume(lo_len);
 
-                            let lo = bitter.peek(bitter::MAX_READ_BITS);
-                            bitter.consume(bitter::MAX_READ_BITS);
+                            unsafe { bitter.refill_lookahead_unchecked() };
+                            let left = x - lo_len;
+                            let hi_len = bitter.lookahead_bits().min(left);
+                            let hi = bitter.peek(hi_len);
+                            bitter.consume(hi_len);
 
-                            let hi_bits = x - bitter::MAX_READ_BITS;
-                            unsafe { bitter.refill_lookahead_unchecked() }
-
-                            let hi = bitter.peek(hi_bits);
-                            bitter.consume(hi_bits);
-
-                            black_box((hi << bitter::MAX_READ_BITS) + lo);
+                            if hi_len == left {
+                                black_box((hi << lo_len) + lo);
+                            } else {
+                                unsafe { bitter.refill_lookahead_unchecked() };
+                                let left = x - lo_len - hi_len;
+                                let hi2 = bitter.peek(left);
+                                bitter.consume(left);
+                                black_box((hi2 << (lo_len + hi_len)) + (hi << lo_len) + lo);
+                            }
                         }
                     }
                 }
@@ -280,8 +221,8 @@ fn real_world1(c: &mut Criterion) {
         b.iter(|| {
             let mut bits = LittleEndianReader::new(&DATA);
             for _ in 0..ITER {
-                let len = bits.refill_lookahead();
-                assert!(len >= bitter::MAX_READ_BITS);
+                bits.refill_lookahead();
+                assert!(bits.lookahead_bits() >= bitter::MAX_READ_BITS);
 
                 black_box(bits.peek(2));
                 bits.consume(2);
@@ -345,8 +286,8 @@ fn real_world2(c: &mut Criterion) {
         b.iter(|| {
             let mut bits = LittleEndianReader::new(&DATA);
             for _ in 0..ITER {
-                let len = bits.refill_lookahead();
-                assert!(len >= 24);
+                bits.refill_lookahead();
+                assert!(bits.lookahead_bits() >= 24);
                 black_box(bits.peek(4));
                 bits.consume(4);
 
@@ -356,8 +297,8 @@ fn real_world2(c: &mut Criterion) {
                 black_box(bits.peek(19));
                 bits.consume(19);
 
-                let len = bits.refill_lookahead();
-                assert!(len > 36);
+                bits.refill_lookahead();
+                assert!(bits.lookahead_bits() > 36);
                 black_box(bits.peek(19));
                 bits.consume(19);
 

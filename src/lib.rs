@@ -34,12 +34,18 @@ However, one can unlock additional performance by amortizing internal state logi
 use bitter::{BitReader, LittleEndianReader};
 let mut bits = LittleEndianReader::new(&[0xff, 0x04]);
 
-// Always start manual management with a refill, which
-// will return the number of bits buffered
-let len = bits.refill_lookahead();
+// ... snip code that may have read some bits
 
-// We need at least 16 bits buffered
-assert!(len >= 16);
+// We first check that there's enough total bits
+if !bits.has_bits_remaining(16) {
+  panic!("not enough bits remaining");
+}
+
+// Despite there being enough data, the lookahead buffer may not be sufficient
+if bits.lookahead_bits() < 16 {
+  bits.refill_lookahead();
+  assert!(bits.lookahead_bits() >= 16)
+}
 
 // We use a combination of peek and consume instead of read_*
 assert_eq!(bits.peek(1), 1);
@@ -57,25 +63,6 @@ assert_eq!(bits.read_bits(7), Some(0x02));
 The refill, peek, and consume combination are the building blocks for Manual Mode, and allows fine grain management for hot loops. The surface area of Manual Mode APIs is purposely compact to keep things simple. The "Auto Mode" API (the functions with `read_` prefix) is larger as that API should be the one reaches for first
 
 Manual mode can be intimidating, but it's one of if not the fastest way to decode a bit stream, as it's based on variant 4 from [Fabian Giesen's excellent series on reading bits](https://fgiesen.wordpress.com/2018/02/20/reading-bits-in-far-too-many-ways-part-2/). Others have employed this underlying technique to [significantly speed up DEFLATE](https://dougallj.wordpress.com/2022/08/20/faster-zlib-deflate-decompression-on-the-apple-m1-and-x86/).
-
-Still, the limitation of a bit reading library only able to read up to 56 bits seems arbitrary and limiting. This can be mitigated through a couple measures. The first is to use a static assertion so we know refilling the lookahead buffer can yield sufficient data if available.
-
-```rust
-use bitter::{BitReader, LittleEndianReader};
-let mut bits = LittleEndianReader::new(&[0xff, 0x04]);
-
-const _: () = assert!(
-    bitter::MAX_READ_BITS >= 16,
-    "lookahead bit buffer not large enough for our data"
-);
-
-let len = bits.refill_lookahead();
-if len < 16 {
-    panic!("Early EOF");
-}
-
-// ... peek & consume ...
-```
 
 The read size limitation can be eliminated by emulating larger reads. For instance, decoding a 128 bit number:
 
@@ -99,14 +86,16 @@ let data: [u8; 8] = [0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
 let bits_to_read = 60u32;
 let value: u64 = 0x123456789;
 let mut bits = LittleEndianReader::new(&data);
+bits.refill_lookahead();
 assert!(bits.has_bits_remaining(bits_to_read as usize));
-assert!(bits.refill_lookahead() >= bitter::MAX_READ_BITS);
+assert!(bits.lookahead_bits() >= bitter::MAX_READ_BITS);
 
 let lo = bits.peek(bitter::MAX_READ_BITS);
 bits.consume(bitter::MAX_READ_BITS);
 
 let hi_bits = bits_to_read - bitter::MAX_READ_BITS;
-assert!(bits.refill_lookahead() >= hi_bits);
+bits.refill_lookahead();
+assert!(bits.lookahead_bits() >= hi_bits);
 
 let hi = bits.peek(hi_bits);
 bits.consume(hi_bits);
@@ -375,21 +364,21 @@ pub trait BitReader {
     /// Consumes the number of bits from the lookahead buffer
     ///
     /// A core tenent of Manual Mode: refill / peek / consume
-    ///
-    /// # Safety
-    ///
-    /// This operation itself is always safe, but consuming more than what is
-    /// available will cause a debug assertion to be tripped and undefined
-    /// behavior in release mode.
     fn consume(&mut self, count: u32);
 
-    /// Refills the lookahead buffer and returns the number of bits available to
-    /// consume.
-    ///
-    /// The return value will be less than [`MAX_READ_BITS`]
+    /// Refills the lookahead buffer.
     ///
     /// A core tenent of Manual Mode: refill / peek / consume
-    fn refill_lookahead(&mut self) -> u32;
+    fn refill_lookahead(&mut self);
+
+    /// Returns the number of bits in the lookahead buffer
+    ///
+    /// These are the number of bits available to be consumed before a refill is
+    /// necessary.
+    ///
+    /// Guaranteed to be between [[`MAX_READ_BITS`], 64] when at least 8 bytes
+    /// of data remains unread.
+    fn lookahead_bits(&self) -> u32;
 
     /// Refills the buffer without bounds checking
     ///
@@ -421,9 +410,14 @@ pub trait BitReader {
 const BYTE_WIDTH: usize = core::mem::size_of::<u64>();
 const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 
-/// The maximum number of bits available to buffer
+/// The minimum number of bits available after a lookahead refill.
 ///
-/// [`BitReader::refill_lookahead`] returns a maximum equal to this constant.
+/// This minimum is only guaranteed when refilled from data that has at least 8
+/// bytes of unread data. It provides the lower bound to the maximum number of
+/// bits that can be consumed without a refill.
+///
+/// The actual number of bits available in the lookahead can be found at
+/// [`BitReader::lookahead_bits`].
 ///
 /// Use static assertions to ensure that your data model fits within expected
 /// number of refills
@@ -435,7 +429,9 @@ const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 /// );
 /// ```
 ///
-/// If your data model doesn't fit, use multiple refills to emulate support.
+/// If your data model doesn't fit, either use [`BitReader::lookahead_bits`] to
+/// dynamically adjust to what's available for a given refill or refill at given
+/// intervals regardless of what's available.
 pub const MAX_READ_BITS: u32 = 56;
 
 struct BitterState<'a, const LE: bool> {
@@ -718,17 +714,19 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             self.bit_buf = 0;
             self.refill_lookahead();
             self.consume(8 - lookahead_remainder);
-            let mut len = self.refill_lookahead();
+            self.refill_lookahead();
 
             for dst in buf.iter_mut() {
-                if len == 0 {
-                    len = self.refill_lookahead();
-                    debug_assert!(len != 0, "we should have checked we had enough data");
+                if self.lookahead_bits() < 8 {
+                    self.refill_lookahead();
+                    debug_assert!(
+                        self.lookahead_bits() != 0,
+                        "we should have checked we had enough data"
+                    );
                 }
 
                 *dst = self.peek(8) as u8;
                 self.consume(8);
-                len -= 8;
             }
         }
 
@@ -738,31 +736,36 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
     #[inline]
     fn peek(&self, count: u32) -> u64 {
         debug_assert!(
-            count <= MAX_READ_BITS && count <= self.bit_count,
-            "peeking too much data"
+            count <= self.bit_count,
+            "not enough bits in lookahead buffer to fulfill peek ({} vs {})",
+            count,
+            self.bit_count
         );
-
         self.peek_(count)
     }
 
     #[inline]
     fn consume(&mut self, count: u32) {
         debug_assert!(
-            count <= MAX_READ_BITS && count <= self.bit_count,
-            "consumed too much data"
+            count <= self.bit_count,
+            "not enough bits in lookahead buffer to fulfill consume ({} vs {})",
+            count,
+            self.bit_count
         );
-
         self.consume_(count);
     }
 
     #[inline]
-    fn refill_lookahead(&mut self) -> u32 {
+    fn lookahead_bits(&self) -> u32 {
+        self.bit_count
+    }
+
+    #[inline]
+    fn refill_lookahead(&mut self) {
         if self.has_data_for_unaligned_loads() {
             self.refill();
-            MAX_READ_BITS
         } else {
             self.refill_eof();
-            self.bit_count.min(MAX_READ_BITS)
         }
     }
 
@@ -890,7 +893,12 @@ impl<'a> BitReader for LittleEndianReader<'a> {
     }
 
     #[inline]
-    fn refill_lookahead(&mut self) -> u32 {
+    fn lookahead_bits(&self) -> u32 {
+        self.0.lookahead_bits()
+    }
+
+    #[inline]
+    fn refill_lookahead(&mut self) {
         self.0.refill_lookahead()
     }
 
@@ -1010,7 +1018,12 @@ impl<'a> BitReader for BigEndianReader<'a> {
     }
 
     #[inline]
-    fn refill_lookahead(&mut self) -> u32 {
+    fn lookahead_bits(&self) -> u32 {
+        self.0.lookahead_bits()
+    }
+
+    #[inline]
+    fn refill_lookahead(&mut self) {
         self.0.refill_lookahead()
     }
 
