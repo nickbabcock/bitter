@@ -693,6 +693,7 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             for dst in buf.iter_mut() {
                 if self.lookahead_bits() < 8 {
                     self.refill_lookahead();
+                    debug_assert!(self.lookahead_bits() >= 8);
                 }
 
                 *dst = self.peek(8) as u8;
@@ -729,10 +730,7 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             for dst in buf.iter_mut() {
                 if self.lookahead_bits() < 8 {
                     self.refill_lookahead();
-                    debug_assert!(
-                        self.lookahead_bits() != 0,
-                        "we should have checked we had enough data"
-                    );
+                    debug_assert!(self.lookahead_bits() >= 8);
                 }
 
                 *dst = self.peek(8) as u8;
@@ -1430,6 +1428,17 @@ mod tests {
         assert_eq!(bits.read_u8(), Some(224));
         assert_eq!(bits.read_bit(), Some(true));
         assert_eq!(bits.read_bits(13), None);
+    }
+
+    #[test]
+    fn test_bytes_remaining() {
+        let mut bits = LittleEndianReader::new(&[0xff, 0x04]);
+        assert_eq!(bits.bytes_remaining(), 2);
+        assert_eq!(bits.read_bit(), Some(true));
+        assert_eq!(bits.bytes_remaining(), 1);
+        assert_eq!(bits.read_u8(), Some(0x7f));
+        assert!(bits.has_bits_remaining(7));
+        assert_eq!(bits.read_bits(7), Some(0x02));
     }
 }
 
