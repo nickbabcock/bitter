@@ -244,11 +244,11 @@ fn test_bit_reads(data: Vec<u8>) {
     let mut bebits = BigEndianReader::new(data.as_slice());
 
     while !lebits.is_empty() {
-        lebits.read_bit();
+        assert!(matches!(lebits.read_bit(), Some(_)));
     }
 
     while !bebits.is_empty() {
-        bebits.read_bit();
+        assert!(matches!(bebits.read_bit(), Some(_)));
     }
 }
 
@@ -259,6 +259,7 @@ fn _test_bit_reads2<T: BitReader>(mut bitter: T, bits: u32) {
         while chunk_remaining > 0 {
             if bitter.lookahead_bits() == 0 {
                 bitter.refill_lookahead();
+                assert!(bitter.lookahead_bits() > 0);
             }
 
             let to_read = bitter.lookahead_bits().min(chunk_remaining);
