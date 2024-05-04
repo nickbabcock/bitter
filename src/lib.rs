@@ -7,13 +7,13 @@ Bitter reads bits in a desired endian format platform agnostically. Performance 
 ## Features
 
  - ✔ support for little endian, big endian, and native endian formats
- - ✔ request an arbitrary amount of bits (up to 56 bits) and bytes
+ - ✔ request an arbitrary amount of bits (up to 64 bits) and bytes
  - ✔ ergonomic requests for common data types (eg: `u8` ... `u32`, `f32`, etc)
  - ✔ throughput exceeds 2 GiB/s for small reads (< 10 bits) and 10 GiB/s for larger reads
  - ✔ no allocations, no dependencies, and [no panics](https://github.com/dtolnay/no-panic)
  - ✔ `no_std` compatible
 
-## Example
+## Quick start with Auto mode
 
 The example below gives a good demonstration of the main API surface area to decode a 16 bit data model. It strikes a good balance between ergonomics and speed.
 
@@ -28,7 +28,11 @@ assert!(bits.has_bits_remaining(7));
 assert_eq!(bits.read_bits(7), Some(0x02));
 ```
 
-However, one can unlock additional performance by amortizing internal state logic management when exploiting patterns in the encoded data. Colloquially known as Manual Mode, our example from before can be rewritten to take advantage of our domain knowledge that we'll be decoding 16 bits.
+The `read_` prefixed functions are colloquially known as "Auto mode", as one does not need to manage the underlying bits in the lookahead buffer.
+
+## Manual mode
+
+One can unlock additional performance by amortizing internal state logic management when exploiting patterns in the encoded data. Our example from before can be rewritten to take advantage of our domain knowledge that we'll be decoding 16 bits.
 
 ```rust
 use bitter::{BitReader, LittleEndianReader};
@@ -60,52 +64,46 @@ assert!(bits.has_bits_remaining(7));
 assert_eq!(bits.read_bits(7), Some(0x02));
 ```
 
-The refill, peek, and consume combination are the building blocks for Manual Mode, and allows fine grain management for hot loops. The surface area of Manual Mode APIs is purposely compact to keep things simple. The "Auto Mode" API (the functions with `read_` prefix) is larger as that API should be the one reaches for first
+The refill, peek, and consume combination are the building blocks for Manual Mode, and allows fine grain management for hot loops. The surface area of Manual Mode APIs is purposely compact to keep things simple. The Auto mode API is larger as that API should be the first choice.
+
+A major difference between Manual mode and Auto mode is that one can't peek at more than what's in the lookahead buffer. Since the lookahead buffer will vary between `MAX_READ_BITS` and 63 bits, one will need to write logic to stitch together peeks above `MAX_READ_BITS` in the endian of their choice.
 
 Manual mode can be intimidating, but it's one of if not the fastest way to decode a bit stream, as it's based on variant 4 from [Fabian Giesen's excellent series on reading bits](https://fgiesen.wordpress.com/2018/02/20/reading-bits-in-far-too-many-ways-part-2/). Others have employed this underlying technique to [significantly speed up DEFLATE](https://dougallj.wordpress.com/2022/08/20/faster-zlib-deflate-decompression-on-the-apple-m1-and-x86/).
 
-The read size limitation can be eliminated by emulating larger reads. For instance, decoding a 128 bit number:
-
-```rust
-use bitter::{BitReader, LittleEndianReader};
-
-let value: i128 = 0x12345678901234567890123456789012;
-let data = value.to_le_bytes();
-let mut bits = LittleEndianReader::new(&data);
-let mut out = [0u8; core::mem::size_of::<i128>()];
-assert!(bits.read_bytes(&mut out));
-assert_eq!(i128::from_le_bytes(out), value);
-```
-
-Or one can break it down into manageable chunks:
+An example of how one can write a Manual mode solution for reading 60 bits:
 
 ```rust
 use bitter::{BitReader, LittleEndianReader};
 
 let data: [u8; 8] = [0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
-let bits_to_read = 60u32;
-let value: u64 = 0x123456789;
 let mut bits = LittleEndianReader::new(&data);
+
+// ... snip ... maybe some bits are read here.
+
+let expected = 0x0967_4523_01EF_CDAB;
+let bits_to_read = 60u32;
+let lo_len = bits.lookahead_bits();
+let lo = bits.peek(lo_len);
+bits.consume(lo_len);
+
 bits.refill_lookahead();
-assert!(bits.has_bits_remaining(bits_to_read as usize));
-assert!(bits.lookahead_bits() >= bitter::MAX_READ_BITS);
+let left = bits_to_read - lo_len;
+let hi_len = bits.lookahead_bits().min(left);
+let hi = bits.peek(hi_len);
+bits.consume(hi_len);
 
-let lo = bits.peek(bitter::MAX_READ_BITS);
-bits.consume(bitter::MAX_READ_BITS);
-
-let hi_bits = bits_to_read - bitter::MAX_READ_BITS;
-bits.refill_lookahead();
-assert!(bits.lookahead_bits() >= hi_bits);
-
-let hi = bits.peek(hi_bits);
-bits.consume(hi_bits);
-
-let mut expected = [0u8; 8];
-expected.copy_from_slice(&data);
-expected[7] = 0x09;
-
-assert_eq!((hi << bitter::MAX_READ_BITS) + lo, u64::from_le_bytes(expected));
+if hi_len == left {
+    assert_eq!(expected, (hi << lo_len) + lo);
+} else {
+    bits.refill_lookahead();
+    let left = left - hi_len;
+    let hi2 = bits.peek(left);
+    bits.consume(left);
+    assert_eq!(expected, (hi2 << (lo_len + hi_len)) + (hi << lo_len) + lo);
+}
 ```
+
+## Unchecked mode
 
 There's one final trick that bitter exposes that dials performance to 11 at the cost of safety and increased assumptions. Welcome to the unchecked refill API (referred to as "unchecked"), which can only be called when there are at least 8 bytes left in the buffer. Anything less than that can cause invalid memory access. The upside is that this API unlocks the holy grail of branchless bit reading.
 
@@ -236,8 +234,8 @@ pub trait BitReader {
     /// ```
     fn read_f32(&mut self) -> Option<f32>;
 
-    /// Reads an arbitrary number of bits from 1 to 56 (inclusive)
-    /// and returns the unsigned result
+    /// Reads an arbitrary number of bits in the range of [0, 64] and returns
+    /// the unsigned result
     ///
     /// ```rust
     /// use bitter::{BitReader, BigEndianReader};
@@ -246,10 +244,11 @@ pub trait BitReader {
     /// ```
     fn read_bits(&mut self, bits: u32) -> Option<u64>;
 
-    /// Reads an arbitrary number of bits from 1 to 56 (inclusive)
-    /// and returns the signed result. If the most significant bit
-    /// is enabled, the result will be negative. This can be somewhat
-    /// counterintuitive so see the examples
+    /// Reads an arbitrary number of bits in the range of [0, 64] and returns
+    /// the signed result.
+    ///
+    /// If the most significant bit is enabled, the result will be negative.
+    /// This can be somewhat counterintuitive so see the examples
     ///
     /// ```rust
     /// use bitter::{BitReader, BigEndianReader};
@@ -260,9 +259,9 @@ pub trait BitReader {
     /// assert_eq!(bits.read_signed_bits(4), Some(3));
     /// ```
     ///
-    /// To think of it another way, reading the number of bits equivalent
-    /// to a builtin type (i8, i16, etc), will always equal its associated
-    /// ergonomic equivalent when casted.
+    /// To think of it another way, reading the number of bits equivalent to a
+    /// builtin type (i8, i16, etc), will always equal its associated ergonomic
+    /// equivalent when casted.
     ///
     /// ```rust
     /// use bitter::{BitReader, BigEndianReader};
@@ -369,6 +368,13 @@ pub trait BitReader {
     /// Refills the lookahead buffer.
     ///
     /// A core tenent of Manual Mode: refill / peek / consume
+    ///
+    /// Refills the lookahead buffer anywhere between [[`MAX_READ_BITS`], 64] as
+    /// long as the end of the stream has not been reached. See how many bits
+    /// are in the buffer with [BitReader::lookahead_bits].
+    ///
+    /// If [BitReader::lookahead_bits] is already in the specified range,
+    /// additional refills will have no effect.
     fn refill_lookahead(&mut self);
 
     /// Returns the number of bits in the lookahead buffer
@@ -382,10 +388,7 @@ pub trait BitReader {
 
     /// Refills the buffer without bounds checking
     ///
-    /// Guard any usage with
-    /// [`has_bits_remaining`](BitReader::has_bits_remaining)
-    ///
-    /// There is no return value as it would always be [`MAX_READ_BITS`]
+    /// Guard any usage with [BitReader::has_bits_remaining]
     ///
     /// # Safety
     ///
@@ -412,9 +415,9 @@ const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 
 /// The minimum number of bits available after a lookahead refill.
 ///
-/// This minimum is only guaranteed when refilled from data that has at least 8
-/// bytes of unread data. It provides the lower bound to the maximum number of
-/// bits that can be consumed without a refill.
+/// This minimum is only guaranteed when the end of data has not been reached.
+/// It provides the lower bound to the maximum number of bits that can be
+/// consumed without a refill.
 ///
 /// The actual number of bits available in the lookahead can be found at
 /// [`BitReader::lookahead_bits`].
@@ -593,30 +596,56 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
 
     #[inline]
     fn read_bits(&mut self, bits: u32) -> Option<u64> {
+        debug_assert!(
+            bits <= BIT_WIDTH as u32,
+            "read request exceeded limit of {} bits, received {}",
+            BIT_WIDTH,
+            bits
+        );
+
         if self.has_data_for_unaligned_loads() {
-            // This branch to check if a refill is necessary is a little
-            // controversial, as this branch doesn't exist on variant 4
-            // (and Fabien stresses branchless lookahead several times),
-            // but I've found that including this branch on the real
-            // world benchmarks yields 30-50% throughput increase. This
-            // could be hardware dependent, but if a use case is
-            // negatively affected by this decision, it is probably
-            // better off using the manual method anyways.
             if bits > self.bit_count {
                 self.refill();
             }
 
-            let result = self.peek(bits);
-            self.consume(bits);
-            Some(result)
-        } else if self.has_bits_remaining(bits as usize) {
-            if bits > self.bit_count {
-                self.refill_eof();
-            }
+            if bits <= MAX_READ_BITS {
+                let result = self.peek(bits);
+                self.consume(bits);
+                Some(result)
+            } else {
+                let lo = self.peek(MAX_READ_BITS);
+                self.consume(MAX_READ_BITS);
 
-            let result = self.peek(bits);
-            self.consume(bits);
-            Some(result)
+                self.refill_lookahead();
+                let hi_len = bits - MAX_READ_BITS;
+                let hi = self.peek(hi_len);
+                self.consume(hi_len);
+                if LE {
+                    Some((hi << MAX_READ_BITS) + lo)
+                } else {
+                    Some((lo << hi_len) + hi)
+                }
+            }
+        } else if self.has_bits_remaining(bits as usize) {
+            self.refill_eof();
+            if bits <= MAX_READ_BITS {
+                let result = self.peek(bits);
+                self.consume(bits);
+                Some(result)
+            } else {
+                let lo = self.peek(MAX_READ_BITS);
+                self.consume(MAX_READ_BITS);
+
+                self.refill_eof();
+                let hi_len = bits - MAX_READ_BITS;
+                let hi = self.peek(hi_len);
+                self.consume(hi_len);
+                if LE {
+                    Some((hi << MAX_READ_BITS) + lo)
+                } else {
+                    Some((lo << hi_len) + hi)
+                }
+            }
         } else {
             None
         }
@@ -1408,6 +1437,16 @@ mod tests {
     }
 
     #[test]
+    fn read_bits_64() {
+        let mut bits = LittleEndianReader::new(&[
+            0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45,
+            0x67, 0x89,
+        ]);
+        assert_eq!(bits.read_bits(64), Some(0x8967452301efcdab));
+        assert_eq!(bits.read_bits(64), Some(0x8967452301efcdab));
+    }
+
+    #[test]
     fn regression1() {
         let data = vec![0b0000_0010, 0b0011_1111, 0b1011_1100];
         let mut bits = LittleEndianReader::new(data.as_slice());
@@ -1609,6 +1648,16 @@ mod be_tests {
         let mut bits = BigEndianReader::new(&data);
         assert_eq!(bits.read_bits(4), Some(0xf));
         assert_eq!(bits.read_bits(52), Some(0xfeeddccbbaa99));
+    }
+
+    #[test]
+    fn read_bits_64() {
+        let mut bits = BigEndianReader::new(&[
+            0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45,
+            0x67, 0x89,
+        ]);
+        assert_eq!(bits.read_bits(64), Some(0xabcdef0123456789));
+        assert_eq!(bits.read_bits(64), Some(0xabcdef0123456789));
     }
 
     #[test]
