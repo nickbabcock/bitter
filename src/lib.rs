@@ -496,9 +496,10 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
     fn peek_(&self, count: u32) -> u64 {
         if LE {
             self.bit_buf & ((1 << count) - 1)
+        } else if count != 0 {
+            self.bit_buf >> (BIT_WIDTH - count as usize)
         } else {
-            let shr = BIT_WIDTH - count as usize;
-            self.bit_buf >> (shr & (BIT_WIDTH - 1))
+            0
         }
     }
     #[inline]
@@ -687,6 +688,16 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             self.data = tail;
             self.bit_buf = 0;
             self.refill_lookahead();
+        } else if !LE {
+            self.refill_lookahead();
+            for dst in buf.iter_mut() {
+                if self.lookahead_bits() < 8 {
+                    self.refill_lookahead();
+                }
+
+                *dst = self.peek(8) as u8;
+                self.consume(8);
+            }
         } else if let Some((first, buf)) = buf.split_first_mut() {
             // Consume the rest of the lookahead
             let lookahead_remainder = self.bit_count;
@@ -694,8 +705,7 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             self.consume(lookahead_remainder);
 
             // lookahead now empty, but adjust overlapping data byte
-            let rem = head[0] << lookahead_remainder;
-            *first = rem + lookahead_tail;
+            *first = (head[0] << lookahead_remainder) + lookahead_tail;
 
             // Then attempt to process multiple 16 bytes at once
             let chunk_size = 16;
@@ -1488,6 +1498,70 @@ mod be_tests {
             bits.read_u32(),
             Some(u32::from_be_bytes([0xdd, 0xee, 0xff, 0xdd]))
         );
+    }
+
+    #[test]
+    fn test_whole_bytes_shift() {
+        let mut bits = BigEndianReader::new(&[
+            0xdf, 0xed, 0xfe, 0xdf, 0xed, 0xae, 0xba, 0xcb, 0xdc, 0xfd, 0xdf, 0xed, 0xfe, 0xdf,
+            0x0d,
+        ]);
+
+        assert_eq!(bits.read_bits(4), Some(0x0d));
+        assert_eq!(bits.read_u16(), Some(u16::from_be_bytes([0xfe, 0xdf])));
+        let mut out = [0u8; 8];
+        assert!(bits.read_bytes(&mut out));
+        assert_eq!(
+            u64::from_be_bytes(out),
+            u64::from_be_bytes([0xed, 0xfe, 0xda, 0xeb, 0xac, 0xbd, 0xcf, 0xdd])
+        );
+
+        assert_eq!(
+            bits.read_u32(),
+            Some(u32::from_be_bytes([0xfe, 0xdf, 0xed, 0xf0]))
+        );
+    }
+
+    #[test]
+    fn test_whole_bytes_trailing() {
+        let mut bits =
+            BigEndianReader::new(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01]);
+
+        assert!(bits.read_bytes(&mut [0]));
+        assert_eq!(bits.read_bits(0), Some(0));
+    }
+
+    #[test]
+    fn test_whole_bytes_large() {
+        let mut data = vec![0u8; 76];
+        data[0] = 0b0000_0101;
+        data[6] = 0b0000_1000;
+        data[7] = 0b0000_0010;
+        data[8] = 0b0000_0011;
+        data[28] = 0b0000_0000;
+        data[29] = 0b1111_1111;
+        data[74] = 0b1000_0000;
+        data[75] = 0b1011_1111;
+
+        let mut bitter = BigEndianReader::new(&data);
+        assert_eq!(bitter.read_bit(), Some(false));
+
+        let mut buf = [0u8; 75];
+        assert!(bitter.read_bytes(&mut buf));
+
+        // prefix
+        assert_eq!(buf[0], 0b0000_1010);
+        assert_eq!(buf[6], 0b0001_0000);
+
+        // body
+        assert_eq!(buf[7], 0b0000_0100);
+        assert_eq!(buf[8], 0b0000_0110);
+        assert_eq!(buf[28], 0b0000_0001);
+
+        // suffix
+        assert_eq!(buf[74], 0b0000_0001);
+        assert_eq!(bitter.read_bits(7), Some(0b0011_1111));
+        assert_eq!(bitter.read_bit(), None);
     }
 
     #[test]

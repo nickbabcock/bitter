@@ -190,18 +190,12 @@ fn test_read_bytes_large(mut data: Vec<u8>, buf_len: u8) {
     assert_eq!(buf[74], 0b1100_0000);
 }
 
-#[quickcheck]
-fn test_read_bytes_equiv(data: Vec<u8>, buf_len: u8, shift: u8) {
+fn _test_read_bytes_equiv<T: BitReader>(mut bitter1: T, mut bitter2: T, buf_len: u8, shift: u8) {
     let mut buf1 = vec![0u8; usize::from(buf_len)];
     let mut buf2 = vec![0u8; usize::from(buf_len)];
 
-    let mut bitter1 = LittleEndianReader::new(&data);
-    let mut bitter2 = LittleEndianReader::new(&data);
-
-    let shift = shift as u32 % 56;
-    if shift != 0 {
-        assert_eq!(bitter1.read_bits(shift), bitter2.read_bits(shift));
-    }
+    let shift = shift as u32 % 57;
+    assert_eq!(bitter1.read_bits(shift), bitter2.read_bits(shift));
 
     if !bitter1.has_bits_remaining(buf1.len() * 8) {
         assert!(!bitter1.read_bytes(&mut buf1));
@@ -214,7 +208,23 @@ fn test_read_bytes_equiv(data: Vec<u8>, buf_len: u8, shift: u8) {
 
     assert!(bitter2.read_bytes(&mut buf2));
     assert_eq!(buf1.as_slice(), buf2.as_slice());
-    assert_eq!(bitter1.read_u8(), bitter2.read_u8());
+    assert_eq!(bitter1.read_bits(shift), bitter2.read_bits(shift));
+}
+
+#[quickcheck]
+fn test_read_bytes_equiv_le(data: Vec<u8>, buf_len: u8, shift: u8) {
+    let bitter1 = LittleEndianReader::new(&data);
+    let bitter2 = LittleEndianReader::new(&data);
+
+    _test_read_bytes_equiv(bitter1, bitter2, buf_len, shift);
+}
+
+#[quickcheck]
+fn test_read_bytes_equiv_be(data: Vec<u8>, buf_len: u8, shift: u8) {
+    let bitter1 = BigEndianReader::new(&data);
+    let bitter2 = BigEndianReader::new(&data);
+
+    _test_read_bytes_equiv(bitter1, bitter2, buf_len, shift);
 }
 
 #[quickcheck]
