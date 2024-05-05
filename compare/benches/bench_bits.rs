@@ -44,8 +44,17 @@ fn bitting(c: &mut Criterion) {
             b.iter(|| {
                 let mut bitter = LittleEndianReader::new(&DATA[..]);
                 let mut result = bitter.read_bits(1).unwrap();
-                for _ in 0..ITER {
-                    result |= bitter.read_bits(*param).unwrap();
+                if *param <= bitter::MAX_READ_BITS {
+                    for _ in 0..ITER {
+                        result |= bitter.read_bits(*param).unwrap();
+                    }
+                } else {
+                    for _ in 0..ITER {
+                        let lo = bitter.read_bits(bitter::MAX_READ_BITS).unwrap();
+                        let hi_bits = *param - bitter::MAX_READ_BITS;
+                        let hi = bitter.read_bits(hi_bits).unwrap();
+                        result |= (hi << bitter::MAX_READ_BITS) + lo;
+                    }
                 }
                 assert_eq!(result, 0);
             })
