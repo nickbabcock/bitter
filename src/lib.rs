@@ -466,15 +466,6 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
     }
 
     #[inline]
-    fn shift(input: u64, count: u32) -> u64 {
-        if LE {
-            input << count
-        } else {
-            input >> count
-        }
-    }
-
-    #[inline]
     fn read(&mut self) -> u64 {
         debug_assert!(self.unbuffered_bytes() >= 8);
         let mut result = [0u8; 8];
@@ -513,34 +504,30 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
     }
 
     #[inline]
-    fn refill_with(&mut self, raw: u64) -> usize {
-        self.bit_buf |= Self::shift(raw, self.bit_count);
-
-        let shift = 7 - ((self.bit_count as usize >> 3) & 7);
-        self.bit_count |= MAX_READ_BITS;
-        shift
+    fn refill_shift(&mut self, raw: u64) -> usize {
+        self.bit_buf |= if LE {
+            raw << self.bit_count
+        } else {
+            raw >> self.bit_count
+        };
+        7 - ((self.bit_count as usize >> 3) & 7)
     }
 
     #[inline]
     fn refill(&mut self) {
         let raw = self.read();
-        let shift = self.refill_with(raw);
+        let shift = self.refill_shift(raw);
         self.data = &self.data[shift..];
+        self.bit_count |= MAX_READ_BITS;
     }
 
     #[inline]
     fn refill_eof(&mut self) {
-        self.bit_buf |= Self::shift(self.read_eof(), self.bit_count);
-
-        let left = self.unbuffered_bytes();
-        let consumed = ((63 - (self.bit_count) as usize) >> 3).min(left);
+        let raw = self.read_eof();
+        let shift = self.refill_shift(raw);
+        let consumed = self.unbuffered_bytes().min(shift);
         self.data = &self.data[consumed..];
-
-        if self.unbuffered_bytes() > 0 {
-            self.bit_count |= MAX_READ_BITS;
-        } else {
-            self.bit_count += (consumed * 8) as u32;
-        }
+        self.bit_count += (consumed * 8) as u32;
     }
 
     // End of buffer checking is a fascinating topic, see:
@@ -781,8 +768,9 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
     unsafe fn refill_lookahead_unchecked(&mut self) {
         debug_assert!(self.unbuffered_bytes() >= 8);
         let result = self.data.as_ptr().cast::<u64>().read_unaligned();
-        let shift = self.refill_with(Self::which(result));
+        let shift = self.refill_shift(Self::which(result));
         self.data = self.data.get_unchecked(shift..);
+        self.bit_count |= MAX_READ_BITS;
     }
 
     #[inline]
