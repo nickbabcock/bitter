@@ -194,7 +194,7 @@ fn _test_read_bytes_equiv<T: BitReader>(mut bitter1: T, mut bitter2: T, buf_len:
     let mut buf1 = vec![0u8; usize::from(buf_len)];
     let mut buf2 = vec![0u8; usize::from(buf_len)];
 
-    let shift = shift as u32 % 57;
+    let shift = shift as u32 % 65;
     assert_eq!(bitter1.read_bits(shift), bitter2.read_bits(shift));
 
     if !bitter1.has_bits_remaining(buf1.len() * 8) {
