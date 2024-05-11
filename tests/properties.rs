@@ -356,26 +356,6 @@ fn read_byte_alternate(data: Vec<u8>) -> bool {
 }
 
 #[quickcheck]
-fn read_u16_eq(x: u16) -> bool {
-    let le_data = x.to_le_bytes();
-    let be_data = x.to_be_bytes();
-    let mut lebits = LittleEndianReader::new(&le_data);
-    let mut bebits = BigEndianReader::new(&be_data);
-
-    lebits.read_u16() == bebits.read_u16()
-}
-
-#[quickcheck]
-fn read_u32_eq(x: u32) -> bool {
-    let le_data = x.to_le_bytes();
-    let be_data = x.to_be_bytes();
-    let mut lebits = LittleEndianReader::new(&le_data);
-    let mut bebits = BigEndianReader::new(&be_data);
-
-    lebits.read_u32() == bebits.read_u32()
-}
-
-#[quickcheck]
 fn has_bits_remaining_bit_reads_ends(reads: u8, data: Vec<u8>) -> bool {
     fn test_fn<B: BitReader>(bits: &mut B, reads: u8) -> bool {
         let mut result = true;
@@ -392,31 +372,6 @@ fn has_bits_remaining_bit_reads_ends(reads: u8, data: Vec<u8>) -> bool {
     let mut bebits = LittleEndianReader::new(data.as_slice());
 
     test_fn(&mut lebits, reads) && test_fn(&mut bebits, reads)
-}
-
-#[quickcheck]
-fn read_u32_val_eq(bits: u32) -> bool {
-    let le_data = bits.to_le_bytes();
-    let be_data = bits.to_be_bytes();
-
-    let mut lebits = LittleEndianReader::new(&le_data);
-    let mut bebits = BigEndianReader::new(&be_data);
-
-    lebits.read_u32() == bebits.read_u32()
-}
-
-#[quickcheck]
-fn read_f32_eq(bits: u32) -> bool {
-    let le_data = bits.to_le_bytes();
-    let be_data = bits.to_be_bytes();
-
-    let mut lebits = LittleEndianReader::new(&le_data);
-    let mut bebits = BigEndianReader::new(&be_data);
-
-    match (lebits.read_f32(), bebits.read_f32()) {
-        (Some(y), Some(x)) => (x.is_nan() && y.is_nan()) || x == y,
-        _ => false,
-    }
 }
 
 #[quickcheck]
@@ -471,4 +426,71 @@ fn read_be_signed_bits2(a: i8, b: i16, c: i32) -> bool {
     bebits.read_signed_bits(8).map(|x| x as i8) == bebits2.read_i8()
         && bebits.read_signed_bits(16).map(|x| x as i16) == bebits2.read_i16()
         && bebits.read_signed_bits(32).map(|x| x as i32) == bebits2.read_i32()
+}
+
+#[quickcheck]
+fn read_ergonomics(i8: i8, u8: u8, i16: i16, u16: u16, i32: i32, u32: u32, i64: i64, u64: u64) {
+    let ff32 = f32::from_bits(u32);
+    let ff64 = f64::from_bits(u64);
+
+    let mut data = Vec::new();
+    data.extend_from_slice(&i8.to_le_bytes());
+    data.extend_from_slice(&u8.to_le_bytes());
+    data.extend_from_slice(&i16.to_le_bytes());
+    data.extend_from_slice(&u16.to_le_bytes());
+    data.extend_from_slice(&i32.to_le_bytes());
+    data.extend_from_slice(&u32.to_le_bytes());
+    data.extend_from_slice(&i64.to_le_bytes());
+    data.extend_from_slice(&u64.to_le_bytes());
+    data.extend_from_slice(&ff32.to_le_bytes());
+    data.extend_from_slice(&ff64.to_le_bytes());
+
+    let mut data2 = Vec::new();
+    data2.extend_from_slice(&i8.to_be_bytes());
+    data2.extend_from_slice(&u8.to_be_bytes());
+    data2.extend_from_slice(&i16.to_be_bytes());
+    data2.extend_from_slice(&u16.to_be_bytes());
+    data2.extend_from_slice(&i32.to_be_bytes());
+    data2.extend_from_slice(&u32.to_be_bytes());
+    data2.extend_from_slice(&i64.to_be_bytes());
+    data2.extend_from_slice(&u64.to_be_bytes());
+    data2.extend_from_slice(&ff32.to_be_bytes());
+    data2.extend_from_slice(&ff64.to_be_bytes());
+
+    let mut lebits = LittleEndianReader::new(&data);
+
+    assert_eq!(lebits.read_i8(), Some(i8));
+    assert_eq!(lebits.read_u8(), Some(u8));
+    assert_eq!(lebits.read_i16(), Some(i16));
+    assert_eq!(lebits.read_u16(), Some(u16));
+    assert_eq!(lebits.read_i32(), Some(i32));
+    assert_eq!(lebits.read_u32(), Some(u32));
+    assert_eq!(lebits.read_i64(), Some(i64));
+    assert_eq!(lebits.read_u64(), Some(u64));
+
+    assert!(
+        (ff32.is_nan() && lebits.read_f32().unwrap().is_nan()) || lebits.read_f32() == Some(ff32)
+    );
+
+    assert!(
+        (ff64.is_nan() && lebits.read_f64().unwrap().is_nan()) || lebits.read_f64() == Some(ff64)
+    );
+
+    let mut bebits = BigEndianReader::new(&data2);
+    assert_eq!(bebits.read_i8(), Some(i8));
+    assert_eq!(bebits.read_u8(), Some(u8));
+    assert_eq!(bebits.read_i16(), Some(i16));
+    assert_eq!(bebits.read_u16(), Some(u16));
+    assert_eq!(bebits.read_i32(), Some(i32));
+    assert_eq!(bebits.read_u32(), Some(u32));
+    assert_eq!(bebits.read_i64(), Some(i64));
+    assert_eq!(bebits.read_u64(), Some(u64));
+
+    assert!(
+        (ff32.is_nan() && bebits.read_f32().unwrap().is_nan()) || bebits.read_f32() == Some(ff32)
+    );
+
+    assert!(
+        (ff64.is_nan() && bebits.read_f64().unwrap().is_nan()) || bebits.read_f64() == Some(ff64)
+    );
 }

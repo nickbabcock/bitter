@@ -8,7 +8,7 @@ Bitter reads bits in a desired endian format platform agnostically. Performance 
 
  - ✔ support for little endian, big endian, and native endian formats
  - ✔ request an arbitrary amount of bits (up to 64 bits) and bytes
- - ✔ ergonomic requests for common data types (eg: `u8` ... `u32`, `f32`, etc)
+ - ✔ ergonomic requests for common data types (eg: `u8` ... `u64`, `f64`, etc)
  - ✔ throughput exceeds 2 GiB/s for small reads (< 10 bits) and 10 GiB/s for larger reads
  - ✔ no allocations, no dependencies, and [no panics](https://github.com/dtolnay/no-panic)
  - ✔ `no_std` compatible
@@ -233,6 +233,36 @@ pub trait BitReader {
     /// assert_eq!(bits.read_f32(), Some(12.5f32));
     /// ```
     fn read_f32(&mut self) -> Option<f32>;
+
+    /// Consume 64 bits and return the deserialized int
+    ///
+    /// ```rust
+    /// use bitter::{BitReader, LittleEndianReader};
+    /// let data = (22000u64).to_le_bytes();
+    /// let mut bits = LittleEndianReader::new(&data);
+    /// assert_eq!(bits.read_u64(), Some(22000u64));
+    /// ```
+    fn read_u64(&mut self) -> Option<u64>;
+
+    /// Consume 64 bits and return the deserialized int
+    ///
+    /// ```rust
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let data = (-22000i64).to_be_bytes();
+    /// let mut bits = BigEndianReader::new(&data);
+    /// assert_eq!(bits.read_i64(), Some(-22000i64));
+    /// ```
+    fn read_i64(&mut self) -> Option<i64>;
+
+    /// Consume 64 bits and return the deserialized floating point
+    ///
+    /// ```rust
+    /// use bitter::{BitReader, BigEndianReader};
+    /// let data = 12.5f64.to_be_bytes();
+    /// let mut bits = BigEndianReader::new(&data);
+    /// assert_eq!(bits.read_f64(), Some(12.5f64));
+    /// ```
+    fn read_f64(&mut self) -> Option<f64>;
 
     /// Reads an arbitrary number of bits in the range of [0, 64] and returns
     /// the unsigned result
@@ -584,6 +614,8 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
     gen_read!(read_i16, i16);
     gen_read!(read_u32, u32);
     gen_read!(read_i32, i32);
+    gen_read!(read_u64, u64);
+    gen_read!(read_i64, i64);
 
     fn read_bit(&mut self) -> Option<bool> {
         self.read_bits(1).map(|x| x == 1)
@@ -592,6 +624,11 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
     #[inline]
     fn read_f32(&mut self) -> Option<f32> {
         self.read_u32().map(f32::from_bits)
+    }
+
+    #[inline]
+    fn read_f64(&mut self) -> Option<f64> {
+        self.read_u64().map(f64::from_bits)
     }
 
     #[inline]
@@ -873,6 +910,21 @@ impl<'a> BitReader for LittleEndianReader<'a> {
     }
 
     #[inline]
+    fn read_u64(&mut self) -> Option<u64> {
+        self.0.read_u64()
+    }
+
+    #[inline]
+    fn read_i64(&mut self) -> Option<i64> {
+        self.0.read_i64()
+    }
+
+    #[inline]
+    fn read_f64(&mut self) -> Option<f64> {
+        self.0.read_f64()
+    }
+
+    #[inline]
     fn read_bits(&mut self, bits: u32) -> Option<u64> {
         self.0.read_bits(bits)
     }
@@ -995,6 +1047,21 @@ impl<'a> BitReader for BigEndianReader<'a> {
     #[inline]
     fn read_f32(&mut self) -> Option<f32> {
         self.0.read_f32()
+    }
+
+    #[inline]
+    fn read_u64(&mut self) -> Option<u64> {
+        self.0.read_u64()
+    }
+
+    #[inline]
+    fn read_i64(&mut self) -> Option<i64> {
+        self.0.read_i64()
+    }
+
+    #[inline]
+    fn read_f64(&mut self) -> Option<f64> {
+        self.0.read_f64()
     }
 
     #[inline]
@@ -1332,6 +1399,12 @@ mod tests {
         assert_eq!(bits.read_f32(), Some(0.085));
         assert_eq!(bits.read_bit(), Some(false));
         assert_eq!(bits.read_f32(), Some(0.085));
+    }
+
+    #[test]
+    fn test_f64_reads() {
+        let mut bits = LittleEndianReader::new(&[0u8; 8]);
+        assert_eq!(bits.read_f64(), Some(0.0));
     }
 
     #[test]
