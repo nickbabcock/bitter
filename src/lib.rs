@@ -9,7 +9,7 @@ Bitter reads bits in a desired endian format platform agnostically. Performance 
  - ✔ support for little endian, big endian, and native endian formats
  - ✔ request an arbitrary amount of bits (up to 64 bits) and bytes
  - ✔ ergonomic requests for common data types (eg: `u8` ... `u64`, `f64`, etc)
- - ✔ throughput exceeds 2 GiB/s for small reads (< 10 bits) and 10 GiB/s for larger reads
+ - ✔ fastest bit reader at multi-GiB/s throughput
  - ✔ no allocations, no dependencies, and [no panics](https://github.com/dtolnay/no-panic)
  - ✔ `no_std` compatible
 
@@ -82,26 +82,22 @@ let mut bits = LittleEndianReader::new(&data);
 
 let expected = 0x0967_4523_01EF_CDAB;
 let bits_to_read = 60u32;
+
+bits.refill_lookahead();
 let lo_len = bits.lookahead_bits();
 let lo = bits.peek(lo_len);
 bits.consume(lo_len);
 
-bits.refill_lookahead();
 let left = bits_to_read - lo_len;
+bits.refill_lookahead();
 let hi_len = bits.lookahead_bits().min(left);
 let hi = bits.peek(hi_len);
 bits.consume(hi_len);
 
-if hi_len == left {
-    assert_eq!(expected, (hi << lo_len) + lo);
-} else {
-    bits.refill_lookahead();
-    let left = left - hi_len;
-    let hi2 = bits.peek(left);
-    bits.consume(left);
-    assert_eq!(expected, (hi2 << (lo_len + hi_len)) + (hi << lo_len) + lo);
-}
+assert_eq!(expected, (hi << lo_len) + lo);
 ```
+
+The above is not an endorsement of the best way to simulate larger reads in Manual mode. For instance, it may be better to drain the lookahead first, or use `MAX_READ_BITS` to calculate `lo` instead of querying `lookahead_bits`. Always profile for your environment. 
 
 ## Unchecked mode
 
