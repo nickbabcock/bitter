@@ -25,7 +25,7 @@ df <- mutate(df,
              fn = `function`,
              bitter = is_bitter(fn),
              line = get_line_type(fn),
-             latency = (iteration_count * 10000) / sample_measured_value,
+             latency = (iteration_count * 1000) / sample_measured_value,
 )
 
 functionNames <- df %>% select(fn) %>% distinct() %>% pull() %>% sort(decreasing = TRUE)
