@@ -9,13 +9,13 @@ Bitter reads bits in a desired endian format platform agnostically. Performance 
 ## Features
 
  - ✔ support for little endian, big endian, and native endian formats
- - ✔ request an arbitrary amount of bits (up to 56 bits) and bytes
- - ✔ ergonomic requests for common data types (eg: `u8` ... `u32`, `f32`, etc)
- - ✔ throughput exceeds 2 GiB/s for small reads (< 10 bits) and 10 GiB/s for larger reads
+ - ✔ request an arbitrary amount of bits (up to 64 bits) and bytes
+ - ✔ ergonomic requests for common data types (eg: `u8` ... `u64`, `f64`, etc)
+ - ✔ fastest bit reader at multi-GiB/s throughput
  - ✔ no allocations, no dependencies, and [no panics](https://github.com/dtolnay/no-panic)
  - ✔ `no_std` compatible
 
-## Example
+## Quick start with Auto mode
 
 The example below gives a good demonstration of the main API surface area to decode a 16 bit data model. It strikes a good balance between ergonomics and speed.
 
@@ -30,18 +30,28 @@ assert!(bits.has_bits_remaining(7));
 assert_eq!(bits.read_bits(7), Some(0x02));
 ```
 
-However, one can unlock additional performance by amortizing internal state logic management when exploiting patterns in the encoded data. Colloquially known as Manual Mode, our example from before can be rewritten to take advantage of our domain knowledge that we'll be decoding 16 bits.
+The `read_` prefixed functions are colloquially known as "Auto mode", as one does not need to manage the underlying bits in the lookahead buffer.
+
+## Manual mode
+
+One can unlock additional performance by amortizing internal state logic management when exploiting patterns in the encoded data. Our example from before can be rewritten to take advantage of our domain knowledge that we'll be decoding 16 bits.
 
 ```rust
 use bitter::{BitReader, LittleEndianReader};
 let mut bits = LittleEndianReader::new(&[0xff, 0x04]);
 
-// Always start manual management with a refill, which
-// will return the number of bits buffered
-let len = bits.refill_lookahead();
+// ... snip code that may have read some bits
 
-// We need at least 16 bits buffered
-assert!(len >= 16);
+// We first check that there's enough total bits
+if !bits.has_bits_remaining(16) {
+  panic!("not enough bits remaining");
+}
+
+// Despite there being enough data, the lookahead buffer may not be sufficient
+if bits.lookahead_bits() < 16 {
+  bits.refill_lookahead();
+  assert!(bits.lookahead_bits() >= 16)
+}
 
 // We use a combination of peek and consume instead of read_*
 assert_eq!(bits.peek(1), 1);
@@ -56,69 +66,42 @@ assert!(bits.has_bits_remaining(7));
 assert_eq!(bits.read_bits(7), Some(0x02));
 ```
 
-The refill, peek, and consume combination are the building blocks for Manual Mode, and allows fine grain management for hot loops. The surface area of Manual Mode APIs is purposely compact to keep things simple. The "Auto Mode" API (the functions with `read_` prefix) is larger as that API should be the one reaches for first
+The refill, peek, and consume combination are the building blocks for Manual Mode, and allows fine grain management for hot loops. The surface area of Manual Mode APIs is purposely compact to keep things simple. The Auto mode API is larger as that API should be the first choice.
+
+A major difference between Manual mode and Auto mode is that one can't peek at more than what's in the lookahead buffer. Since the lookahead buffer will vary between `MAX_READ_BITS` and 63 bits, one will need to write logic to stitch together peeks above `MAX_READ_BITS` in the endian of their choice.
 
 Manual mode can be intimidating, but it's one of if not the fastest way to decode a bit stream, as it's based on variant 4 from [Fabian Giesen's excellent series on reading bits](https://fgiesen.wordpress.com/2018/02/20/reading-bits-in-far-too-many-ways-part-2/). Others have employed this underlying technique to [significantly speed up DEFLATE](https://dougallj.wordpress.com/2022/08/20/faster-zlib-deflate-decompression-on-the-apple-m1-and-x86/).
 
-Still, the limitation of a bit reading library only able to read up to 56 bits seems arbitrary and limiting. This can be mitigated through a couple measures. The first is to use a static assertion so we know refilling the lookahead buffer can yield sufficient data if available.
-
-```rust
-use bitter::{BitReader, LittleEndianReader};
-let mut bits = LittleEndianReader::new(&[0xff, 0x04]);
-
-const _: () = assert!(
-    bitter::MAX_READ_BITS >= 16,
-    "lookahead bit buffer not large enough for our data"
-);
-
-let len = bits.refill_lookahead();
-if len < 16 {
-    panic!("Early EOF");
-}
-
-// ... peek & consume ...
-```
-
-The read size limitation can be eliminated by emulating larger reads. For instance, decoding a 128 bit number:
-
-```rust
-use bitter::{BitReader, LittleEndianReader};
-
-let value: i128 = 0x12345678901234567890123456789012;
-let data = value.to_le_bytes();
-let mut bits = LittleEndianReader::new(&data);
-let mut out = [0u8; core::mem::size_of::<i128>()];
-assert!(bits.read_bytes(&mut out));
-assert_eq!(i128::from_le_bytes(out), value);
-```
-
-Or one can break it down into manageable chunks:
+An example of how one can write a Manual mode solution for reading 60 bits:
 
 ```rust
 use bitter::{BitReader, LittleEndianReader};
 
 let data: [u8; 8] = [0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
-let bits_to_read = 60u32;
-let value: u64 = 0x123456789;
 let mut bits = LittleEndianReader::new(&data);
-assert!(bits.has_bits_remaining(bits_to_read as usize));
-assert!(bits.refill_lookahead() >= bitter::MAX_READ_BITS);
 
-let lo = bits.peek(bitter::MAX_READ_BITS);
-bits.consume(bitter::MAX_READ_BITS);
+// ... snip ... maybe some bits are read here.
 
-let hi_bits = bits_to_read - bitter::MAX_READ_BITS;
-assert!(bits.refill_lookahead() >= hi_bits);
+let expected = 0x0967_4523_01EF_CDAB;
+let bits_to_read = 60u32;
 
-let hi = bits.peek(hi_bits);
-bits.consume(hi_bits);
+bits.refill_lookahead();
+let lo_len = bits.lookahead_bits();
+let lo = bits.peek(lo_len);
+bits.consume(lo_len);
 
-let mut expected = [0u8; 8];
-expected.copy_from_slice(&data);
-expected[7] = 0x09;
+let left = bits_to_read - lo_len;
+bits.refill_lookahead();
+let hi_len = bits.lookahead_bits().min(left);
+let hi = bits.peek(hi_len);
+bits.consume(hi_len);
 
-assert_eq!((hi << bitter::MAX_READ_BITS) + lo, u64::from_le_bytes(expected));
+assert_eq!(expected, (hi << lo_len) + lo);
 ```
+
+The above is not an endorsement of the best way to simulate larger reads in Manual mode. For instance, it may be better to drain the lookahead first, or use `MAX_READ_BITS` to calculate `lo` instead of querying `lookahead_bits`. Always profile for your environment. 
+
+## Unchecked mode
 
 There's one final trick that bitter exposes that dials performance to 11 at the cost of safety and increased assumptions. Welcome to the unchecked refill API (referred to as "unchecked"), which can only be called when there are at least 8 bytes left in the buffer. Anything less than that can cause invalid memory access. The upside is that this API unlocks the holy grail of branchless bit reading.
 

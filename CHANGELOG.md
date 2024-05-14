@@ -1,3 +1,15 @@
+## 0.7.0 - 2024-05-14
+
+- Revert `read_bytes` optimization for unaligned big endian readers due to correctness issues
+- Add support to `read_bits` for reading any number of bits up to 64 bits
+- Add `BitReader::read_u64`, `BitReader::read_i64`, and `BitReader::read_f64`
+- Add support to `read_bits`, `peek`, and `consume` of zero bits
+- Add `BitReader::lookahead_bits` that returns the number of bits in the lookahead buffer
+- Allow `peek` and `consume` to accept arguments up to `BitReader::lookahead_bits`
+- Remove the return value from `BitReader::refill_lookahead`, which can now be found in `BitReader::lookahead_bits`
+- MSRV increased to 1.51
+- Most `unsafe` code has been converted to their safe equivalents without a loss in performance
+
 ## 0.6.2 - 2024-01-14
 
 - `read_bytes` performance impovements: 35-40% for small reads and up to 22x for large byte unaligned reads.
