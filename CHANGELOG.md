@@ -10,6 +10,22 @@
 - MSRV increased to 1.51
 - Most `unsafe` code has been converted to their safe equivalents without a loss in performance
 
+### Migration
+
+The return value of `BitReader::refill_lookahead` has been removed and can be replaced with:
+
+```rust
+let data: [u8; 1] = [0xab];
+let mut bits = LittleEndianReader::new(&data);
+
+// BEFORE:
+// let left = bits.refill_lookahead();
+
+// AFTER:
+bits.refill_lookahead();
+let left = bits.lookahead_bits();
+```
+
 ## 0.6.2 - 2024-01-14
 
 - `read_bytes` performance impovements: 35-40% for small reads and up to 22x for large byte unaligned reads.
