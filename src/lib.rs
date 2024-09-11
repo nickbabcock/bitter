@@ -495,7 +495,7 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
     }
 
     #[inline]
-    fn read(&mut self) -> u64 {
+    fn read(&self) -> u64 {
         debug_assert!(self.unbuffered_bytes() >= 8);
         let mut result = [0u8; 8];
         result.copy_from_slice(&self.data[..8]);
@@ -503,7 +503,7 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
     }
 
     #[inline]
-    fn read_eof(&mut self) -> u64 {
+    fn read_eof(&self) -> u64 {
         debug_assert!(self.unbuffered_bytes() < 8);
         let mut result = [0u8; 8];
         let len = self.unbuffered_bytes();
