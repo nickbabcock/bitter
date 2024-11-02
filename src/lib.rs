@@ -397,9 +397,9 @@ pub trait BitReader {
     ///
     /// Refills the lookahead buffer anywhere between [[`MAX_READ_BITS`], 64] as
     /// long as the end of the stream has not been reached. See how many bits
-    /// are in the buffer with [BitReader::lookahead_bits].
+    /// are in the buffer with [`BitReader::lookahead_bits`].
     ///
-    /// If [BitReader::lookahead_bits] is already in the specified range,
+    /// If [`BitReader::lookahead_bits`] is already in the specified range,
     /// additional refills will have no effect.
     fn refill_lookahead(&mut self);
 
@@ -414,7 +414,7 @@ pub trait BitReader {
 
     /// Refills the buffer without bounds checking
     ///
-    /// Guard any usage with [BitReader::has_bits_remaining]
+    /// Guard any usage with [`BitReader::has_bits_remaining`]
     ///
     /// # Safety
     ///
@@ -972,7 +972,7 @@ impl<'a> BitReader for LittleEndianReader<'a> {
 
     #[inline]
     fn refill_lookahead(&mut self) {
-        self.0.refill_lookahead()
+        self.0.refill_lookahead();
     }
 
     #[inline]
@@ -1112,7 +1112,7 @@ impl<'a> BitReader for BigEndianReader<'a> {
 
     #[inline]
     fn refill_lookahead(&mut self) {
-        self.0.refill_lookahead()
+        self.0.refill_lookahead();
     }
 
     #[inline]
