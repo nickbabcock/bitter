@@ -105,20 +105,18 @@ The above is not an endorsement of the best way to simulate larger reads in Manu
 
 There's one final trick that bitter exposes that dials performance to 11 at the cost of safety and increased assumptions. Welcome to the unchecked refill API (referred to as "unchecked"), which can only be called when there are at least 8 bytes left in the buffer. Anything less than that can cause invalid memory access. The upside is that this API unlocks the holy grail of branchless bit reading.
 
-Always consider guarding unchecked access at a higher level:
+Always guard unchecked access at a higher level:
 
 ```rust
-use bitter::{BitReader, LittleEndianReader};
+use bitter::{BitReader, LittleEndianReader, MAX_READ_BITS};
 
 let mut bits = LittleEndianReader::new(&[0u8; 100]);
 let objects_to_read = 10;
 let object_bits = 56;
-let bitter_padding = 64;
+let desired_bits = objects_to_read * object_bits;
+let bytes_needed = (desired_bits as f64 / 8.0).ceil();
 
-// make sure we have enough data to read all our objects and there is enough
-// data leftover so bitter can unalign read 8 bytes without fear of reading past
-// the end of the buffer.
-if bits.has_bits_remaining(objects_to_read * object_bits + bitter_padding) {
+if bits.unbuffered_bytes_remaining() >= bytes_needed as usize {
     for _ in 0..objects_to_read {
         unsafe { bits.refill_lookahead_unchecked() };
         let _field1 = bits.peek(2);
@@ -133,6 +131,13 @@ if bits.has_bits_remaining(objects_to_read * object_bits + bitter_padding) {
         let _field4 = bits.peek(18);
         bits.consume(18);
     }
+} else if bits.has_bits_remaining(desired_bits) {
+  // So have enough bits to read all the objects just not
+  // enough bits to call the unchecked lookahead API everytime.
+  assert!(false);
+} else {
+  // Not enough data.
+  assert!(false);
 }
 ```
 

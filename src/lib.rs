@@ -97,26 +97,24 @@ bits.consume(hi_len);
 assert_eq!(expected, (hi << lo_len) + lo);
 ```
 
-The above is not an endorsement of the best way to simulate larger reads in Manual mode. For instance, it may be better to drain the lookahead first, or use `MAX_READ_BITS` to calculate `lo` instead of querying `lookahead_bits`. Always profile for your environment. 
+The above is not an endorsement of the best way to simulate larger reads in Manual mode. For instance, it may be better to drain the lookahead first, or use `MAX_READ_BITS` to calculate `lo` instead of querying `lookahead_bits`. Always profile for your environment.
 
 ## Unchecked mode
 
 There's one final trick that bitter exposes that dials performance to 11 at the cost of safety and increased assumptions. Welcome to the unchecked refill API (referred to as "unchecked"), which can only be called when there are at least 8 bytes left in the buffer. Anything less than that can cause invalid memory access. The upside is that this API unlocks the holy grail of branchless bit reading.
 
-Always consider guarding unchecked access at a higher level:
+Always guard unchecked access at a higher level:
 
 ```rust
-use bitter::{BitReader, LittleEndianReader};
+use bitter::{BitReader, LittleEndianReader, MAX_READ_BITS};
 
 let mut bits = LittleEndianReader::new(&[0u8; 100]);
 let objects_to_read = 10;
 let object_bits = 56;
-let bitter_padding = 64;
+let desired_bits = objects_to_read * object_bits;
+let bytes_needed = (desired_bits as f64 / 8.0).ceil();
 
-// make sure we have enough data to read all our objects and there is enough
-// data leftover so bitter can unalign read 8 bytes without fear of reading past
-// the end of the buffer.
-if bits.has_bits_remaining(objects_to_read * object_bits + bitter_padding) {
+if bits.unbuffered_bytes_remaining() >= bytes_needed as usize {
     for _ in 0..objects_to_read {
         unsafe { bits.refill_lookahead_unchecked() };
         let _field1 = bits.peek(2);
@@ -131,6 +129,13 @@ if bits.has_bits_remaining(objects_to_read * object_bits + bitter_padding) {
         let _field4 = bits.peek(18);
         bits.consume(18);
     }
+} else if bits.has_bits_remaining(desired_bits) {
+  // So have enough bits to read all the objects just not
+  // enough bits to call the unchecked lookahead API everytime.
+  assert!(false);
+} else {
+  // Not enough data.
+  assert!(false);
 }
 ```
 
@@ -313,6 +318,35 @@ pub trait BitReader {
     /// ```
     fn bytes_remaining(&self) -> usize;
 
+    /// Returns how many bytes are still left in the passed in buffer.
+    ///
+    /// How many bytes remain in the original buffer is typically an
+    /// implementation detail, and one should prefer
+    /// [`BitReader::bytes_remaining`], which includes bytes in the lookahead
+    /// buffer.
+    ///
+    /// However, the bitter unchecked API,
+    /// [`BitReader::refill_lookahead_unchecked`], requires this same
+    /// calculation to avoid undefined behavior.
+    ///
+    /// **Anecdotally** the use of this function can assist the compiler in
+    /// eliminating branches that would appear in
+    /// [`BitReader::refill_lookahead`] without needing to introduce unsafe
+    /// blocks. Your mileage may vary.
+    ///
+    /// ```rust
+    /// # use bitter::{LittleEndianReader, BitReader};
+    /// let mut bits = LittleEndianReader::new(&[0u8; 100]);
+    /// if bits.unbuffered_bytes_remaining() >= 16 {
+    ///   // The compiler can eliminate the end of buffer checks
+    ///   // in both of these refills without needing to drop to unsafe
+    ///   bits.refill_lookahead();
+    ///   // ... do some reading ...
+    ///   bits.refill_lookahead();
+    /// }
+    /// ```
+    fn unbuffered_bytes_remaining(&self) -> usize;
+
     /// Returns the exact number of bits remaining in the bitstream if the
     /// number of bits can fit within a `usize`. For large byte slices,
     /// calculating the number of bits can cause an overflow, hence an `Option`
@@ -412,15 +446,37 @@ pub trait BitReader {
     /// of data remains unread.
     fn lookahead_bits(&self) -> u32;
 
-    /// Refills the buffer without bounds checking
+    /// Refills the lookahead buffer without bounds checking
     ///
-    /// Guard any usage with [`BitReader::has_bits_remaining`]
+    /// After calling, the lookahead buffer is guaranteed to have between
+    /// [[`MAX_READ_BITS`], 64] bits available to read.
     ///
     /// # Safety
     ///
-    /// This function assumes that there are at least 8 bytes left in the data
+    /// This function assumes that there are at least 8 bytes left unbuffered
     /// for an unaligned read. It is undefined behavior if there is less than 8
     /// bytes remaining
+    ///
+    /// Guard all usages with [`BitReader::unbuffered_bytes_remaining`]
+    ///
+    /// ```rust
+    /// # use bitter::{LittleEndianReader, BitReader};
+    /// let mut bits = LittleEndianReader::new(&[0u8; 100]);
+    /// let objects_to_read = 7;
+    /// let object_bits = 39;
+    /// let desired_bits = objects_to_read * object_bits;
+    /// let bytes_needed = (desired_bits as f64 / 8.0).ceil();
+    /// if bits.unbuffered_bytes_remaining() >= bytes_needed as usize {
+    ///   for _ in 0..objects_to_read {
+    ///     unsafe { bits.refill_lookahead_unchecked() };
+    ///     let _field1 = bits.peek(10);
+    ///     bits.consume(10);
+    ///
+    ///     let _field2 = bits.peek(29);
+    ///     bits.consume(29);
+    ///   }
+    /// }
+    /// ```
     unsafe fn refill_lookahead_unchecked(&mut self);
 
     /// Returns true if the reader is not partway through a byte
@@ -695,6 +751,11 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
     }
 
     #[inline]
+    fn unbuffered_bytes_remaining(&self) -> usize {
+        self.unbuffered_bytes()
+    }
+
+    #[inline]
     fn bits_remaining(&self) -> Option<usize> {
         self.bits_remaining()
     }
@@ -936,6 +997,11 @@ impl<'a> BitReader for LittleEndianReader<'a> {
     }
 
     #[inline]
+    fn unbuffered_bytes_remaining(&self) -> usize {
+        self.0.unbuffered_bytes()
+    }
+
+    #[inline]
     fn bits_remaining(&self) -> Option<usize> {
         self.0.bits_remaining()
     }
@@ -1073,6 +1139,11 @@ impl<'a> BitReader for BigEndianReader<'a> {
     #[inline]
     fn bytes_remaining(&self) -> usize {
         self.0.bytes_remaining()
+    }
+
+    #[inline]
+    fn unbuffered_bytes_remaining(&self) -> usize {
+        self.0.unbuffered_bytes()
     }
 
     #[inline]
@@ -1441,9 +1512,11 @@ mod tests {
         let mut bits = LittleEndianReader::new(&[0xff, 0x04]);
         assert!(!bits.is_empty());
         assert_eq!(bits.bytes_remaining(), 2);
+        assert_eq!(bits.unbuffered_bytes_remaining(), 2);
         assert!(bits.read_bit().is_some());
         assert!(!bits.is_empty());
         assert_eq!(bits.bytes_remaining(), 1);
+        assert_eq!(bits.unbuffered_bytes_remaining(), 0);
         assert!(bits.read_bits(6).is_some());
         assert!(!bits.is_empty());
         assert_eq!(bits.bytes_remaining(), 1);
@@ -1530,7 +1603,9 @@ mod tests {
     fn test_bytes_remaining() {
         let mut bits = LittleEndianReader::new(&[0xff, 0x04]);
         assert_eq!(bits.bytes_remaining(), 2);
+        assert_eq!(bits.unbuffered_bytes_remaining(), 2);
         assert_eq!(bits.read_bit(), Some(true));
+        assert_eq!(bits.unbuffered_bytes_remaining(), 0);
         assert_eq!(bits.bytes_remaining(), 1);
         assert_eq!(bits.read_u8(), Some(0x7f));
         assert!(bits.has_bits_remaining(7));
