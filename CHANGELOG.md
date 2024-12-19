@@ -1,3 +1,8 @@
+## 0.7.1 - 2024-12-19
+
+- Expose the number of unbuffered bytes remaining via `BitReader::unbuffered_bytes_remaining`
+- Restore `read_bytes` optimization for unaligned big endian readers for 10x throughput improvement
+
 ## 0.7.0 - 2024-05-14
 
 - Revert `read_bytes` optimization for unaligned big endian readers due to correctness issues
