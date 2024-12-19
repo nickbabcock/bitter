@@ -798,17 +798,6 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             self.data = tail;
             self.bit_buf = 0;
             self.refill_lookahead();
-        } else if !LE {
-            self.refill_lookahead();
-            for dst in buf.iter_mut() {
-                if self.lookahead_bits() < 8 {
-                    self.refill_lookahead();
-                    debug_assert!(self.lookahead_bits() >= 8);
-                }
-
-                *dst = self.peek(8) as u8;
-                self.consume(8);
-            }
         } else if let Some((first, buf)) = buf.split_first_mut() {
             // Consume the rest of the lookahead
             let lookahead_remainder = self.bit_count;
@@ -816,7 +805,11 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             self.consume(lookahead_remainder);
 
             // lookahead now empty, but adjust overlapping data byte
-            *first = (head[0] << lookahead_remainder) + lookahead_tail;
+            *first = if LE {
+                (head[0] << lookahead_remainder) + lookahead_tail
+            } else {
+                (head[0] >> lookahead_remainder) + (lookahead_tail << (8 - lookahead_remainder))
+            };
 
             // Then attempt to process multiple 16 bytes at once
             let chunk_size = 16;
@@ -824,7 +817,11 @@ impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
             let chunk_bytes = buf_chunks * chunk_size;
 
             let (buf_body, buf) = buf.split_at_mut(chunk_bytes);
-            read_n_bytes(lookahead_remainder, head, buf_body);
+            if LE {
+                read_n_bytes(lookahead_remainder, head, buf_body);
+            } else {
+                read_n_bytes_be(lookahead_remainder, head, buf_body);
+            }
 
             // Process trailing bytes that don't fit into chunk
             //
@@ -1245,6 +1242,17 @@ fn read_n_bytes(rem: u32, input: &[u8], out: &mut [u8]) {
         let left_part = (i[0] >> shift) & mask;
         let right_part = i[1] << rem;
         *o = left_part + right_part;
+    }
+}
+
+#[inline]
+fn read_n_bytes_be(rem: u32, input: &[u8], out: &mut [u8]) {
+    let mask = (1 << rem) - 1;
+
+    for (i, o) in input.windows(2).zip(out.iter_mut()) {
+        let left_part = (i[0] & mask) << (8 - rem);
+        let right_part = i[1] >> rem;
+        *o = left_part | right_part;
     }
 }
 

@@ -54,4 +54,16 @@ fuzz_target!(|data: &[u8]| {
     while bitter.has_bits_remaining(bits as usize) {
         assert_eq!(io.read(bits).ok(), bitter.read_bits(bits))
     }
+
+    let mut io = bitstream_io::BitReader::endian(data, bitstream_io::BigEndian);
+    let mut bitter = BigEndianReader::new(&data);
+    assert_eq!(io.read(bits).ok(), bitter.read_bits(bits));
+    let mut out1 = vec![0; 12];
+    let mut out2 = vec![0; 12];
+    let result1 = io.read_bytes(&mut out1);
+    let result2 = bitter.read_bytes(&mut out2);
+    assert_eq!(result1.is_ok(), result2);
+    if result2 {
+        assert_eq!(out1, out2);
+    }
 });
