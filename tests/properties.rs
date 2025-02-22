@@ -244,11 +244,11 @@ fn test_bit_reads(data: Vec<u8>) {
     let mut bebits = BigEndianReader::new(data.as_slice());
 
     while !lebits.is_empty() {
-        assert!(matches!(lebits.read_bit(), Some(_)));
+        assert!(lebits.read_bit().is_some());
     }
 
     while !bebits.is_empty() {
-        assert!(matches!(bebits.read_bit(), Some(_)));
+        assert!(bebits.read_bit().is_some());
     }
 }
 

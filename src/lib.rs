@@ -659,7 +659,7 @@ macro_rules! gen_read {
     };
 }
 
-impl<'a, const LE: bool> BitReader for BitterState<'a, LE> {
+impl<const LE: bool> BitReader for BitterState<'_, LE> {
     gen_read!(read_u8, u8);
     gen_read!(read_i8, i8);
     gen_read!(read_u16, u16);
@@ -922,7 +922,7 @@ impl<'a> LittleEndianReader<'a> {
     }
 }
 
-impl<'a> BitReader for LittleEndianReader<'a> {
+impl BitReader for LittleEndianReader<'_> {
     #[inline]
     fn read_bit(&mut self) -> Option<bool> {
         self.0.read_bit()
@@ -1067,7 +1067,7 @@ impl<'a> BigEndianReader<'a> {
     }
 }
 
-impl<'a> BitReader for BigEndianReader<'a> {
+impl BitReader for BigEndianReader<'_> {
     #[inline]
     fn read_bit(&mut self) -> Option<bool> {
         self.0.read_bit()
@@ -1543,7 +1543,7 @@ mod tests {
     fn has_bits_remaining_max() {
         let data = vec![];
         let bits = LittleEndianReader::new(data.as_slice());
-        assert_eq!(false, bits.has_bits_remaining(usize::max_value()));
+        assert!(!bits.has_bits_remaining(usize::MAX));
     }
 
     #[test]
@@ -1559,7 +1559,7 @@ mod tests {
         let data = [0b0000_0000, 0b1000_0000];
         let mut bits = LittleEndianReader::new(&data[..]);
 
-        assert_eq!(bits.read_i16(), Some(core::i16::MIN));
+        assert_eq!(bits.read_i16(), Some(i16::MIN));
     }
 
     #[test]
@@ -1567,7 +1567,7 @@ mod tests {
         let data = [0b1111_1111, 0b0111_1111];
         let mut bits = LittleEndianReader::new(&data[..]);
 
-        assert_eq!(bits.read_i16(), Some(core::i16::MAX));
+        assert_eq!(bits.read_i16(), Some(i16::MAX));
     }
 
     #[test]
