@@ -29,7 +29,7 @@ fuzz_target!(|data: &[u8]| {
     let mut bitter = LittleEndianReader::new(data);
     let mut i = 0;
     while bitter.lookahead_bits() != 0 {
-        let read = (i % 56 + 1) % bitter.lookahead_bits() as u32 + 1;
+        let read = (i % 56 + 1) % bitter.lookahead_bits() + 1;
         i += 1;
         bitter.peek(read);
         bitter.consume(read);
@@ -42,21 +42,21 @@ fuzz_target!(|data: &[u8]| {
 
     let bits = (size % bitter::MAX_READ_BITS) + 1;
     let mut io = bitstream_io::BitReader::endian(data, bitstream_io::LittleEndian);
-    let mut bitter = LittleEndianReader::new(&data);
+    let mut bitter = LittleEndianReader::new(data);
 
     while bitter.has_bits_remaining(bits as usize) {
         assert_eq!(io.read(bits).ok(), bitter.read_bits(bits))
     }
 
     let mut io = bitstream_io::BitReader::endian(data, bitstream_io::BigEndian);
-    let mut bitter = BigEndianReader::new(&data);
+    let mut bitter = BigEndianReader::new(data);
 
     while bitter.has_bits_remaining(bits as usize) {
         assert_eq!(io.read(bits).ok(), bitter.read_bits(bits))
     }
 
     let mut io = bitstream_io::BitReader::endian(data, bitstream_io::BigEndian);
-    let mut bitter = BigEndianReader::new(&data);
+    let mut bitter = BigEndianReader::new(data);
     assert_eq!(io.read(bits).ok(), bitter.read_bits(bits));
     let mut out1 = vec![0; 12];
     let mut out2 = vec![0; 12];
