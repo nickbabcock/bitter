@@ -6,7 +6,7 @@ Bitter reads bits in a desired endian format platform agnostically. Performance 
 
 ## Features
 
- - ✔ support for little endian, big endian, and native endian formats
+ - ✔ support for reading and writing little endian, big endian, and native endian formats
  - ✔ request an arbitrary amount of bits (up to 64 bits) and bytes
  - ✔ ergonomic requests for common data types (eg: `u8` ... `u64`, `f64`, etc)
  - ✔ fastest bit reader at multi-GiB/s throughput
@@ -141,20 +141,55 @@ if bits.unbuffered_bytes_remaining() >= bytes_needed as usize {
 
 All three modes: auto, manual, and unchecked can be mixed and matched as desired.
 
-### `no_std` crates
+## Write API
+
+```rust
+# #[cfg(feature = "std")]
+# {
+use bitter::{BitWriter, LittleEndianWriter};
+
+let mut buffer = Vec::new();
+{
+    let mut writer = LittleEndianWriter::new(&mut buffer);
+
+    // Write various data types
+    writer.write_bit(true).unwrap();
+    writer.write_u8(0xFF).unwrap();
+    writer.write_u32(0x12345678).unwrap();
+    writer.write_bits(5, 0x1F).unwrap();  // Write 5 bits
+    writer.flush().unwrap();
+}
+
+println!("Wrote {} bytes", buffer.len());
+# }
+```
+
+The writer APIs act exactly like a `BufWriter`, as behind the scenes there is a bit buffer holding unflushed data, thus the same caveat with BufWriter applies here:
+
+> It is critical to call `flush` before [a writer] is dropped. Though dropping will attempt to flush the contents of the buffer, any errors that happen in the process of dropping will be ignored. Calling `flush` ensures that the buffer is empty and thus dropping will not even attempt file operations.
+
+In the advent that a writer is flushed unaligned to a byte boundary, the remaining bits are padded with zeros.
+
+## `no_std` crates
 
 This crate has a feature, `std`, that is enabled by default. To use this crate
 in a `no_std` context, add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-bits = { version = "x", default-features = false }
+bitter = { version = "x", default-features = false }
 ```
 
 */
 
 #![warn(missing_docs)]
 #![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
+
+#[cfg(feature = "std")]
+mod writer;
+
+#[cfg(feature = "std")]
+pub use writer::*;
 
 /// Read bits in a given endian order
 pub trait BitReader {
@@ -1795,7 +1830,7 @@ mod tests {
     fn test_remainder_simple_api() {
         let bits = LittleEndianReader::new(&[0xaa, 0xbb, 0xcc, 0xdd]);
         let remainder = bits.remainder();
-        
+
         assert_eq!(remainder.partial_byte(), 0);
         assert_eq!(remainder.partial_bits(), 0);
         assert_eq!(remainder.data(), &[0xaa, 0xbb, 0xcc, 0xdd]);
@@ -1805,7 +1840,7 @@ mod tests {
     fn test_remainder_empty_simple() {
         let bits = LittleEndianReader::new(&[]);
         let remainder = bits.remainder();
-        
+
         assert_eq!(remainder.partial_byte(), 0);
         assert_eq!(remainder.partial_bits(), 0);
         assert_eq!(remainder.data(), &[]);
@@ -2071,7 +2106,7 @@ mod be_tests {
     fn test_remainder_simple_api() {
         let bits = BigEndianReader::new(&[0xaa, 0xbb, 0xcc, 0xdd]);
         let remainder = bits.remainder();
-        
+
         assert_eq!(remainder.partial_byte(), 0);
         assert_eq!(remainder.partial_bits(), 0);
         assert_eq!(remainder.data(), &[0xaa, 0xbb, 0xcc, 0xdd]);
@@ -2081,7 +2116,7 @@ mod be_tests {
     fn test_remainder_empty_simple() {
         let bits = BigEndianReader::new(&[]);
         let remainder = bits.remainder();
-        
+
         assert_eq!(remainder.partial_byte(), 0);
         assert_eq!(remainder.partial_bits(), 0);
         assert_eq!(remainder.data(), &[]);
