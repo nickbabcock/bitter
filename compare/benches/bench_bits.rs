@@ -6,8 +6,6 @@ use bitvec::{field::BitField, order::Lsb0, view::BitView};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::io::Cursor;
 
-static DATA: [u8; 0x10_000] = [0; 0x10_000];
-
 const ITER: u64 = 1000;
 
 // It may seem like cheating to pass in a constant used for loop unrolling, but
@@ -15,7 +13,8 @@ const ITER: u64 = 1000;
 // can exploit data patterns and this was a good compromise. This could have
 // been cranked up to 11 and have the amount of bits be a constant propagated
 // into here, but that seemed unfair.
-fn bit_reading<const N: u32, const UNCHECKED: bool, T: BitReader>(mut bitter: T, bits: u32) {
+#[inline]
+fn bit_reading<const N: u32, const UNCHECKED: bool, T: BitReader>(mut bitter: T, bits: u32) -> u64 {
     let iterations = ITER / N as u64;
     let mut result = 0;
     for _ in 0..iterations {
@@ -30,11 +29,18 @@ fn bit_reading<const N: u32, const UNCHECKED: bool, T: BitReader>(mut bitter: T,
             bitter.consume(bits);
         }
     }
-    assert_eq!(result, 0);
+    result
+}
+
+fn gen_data() -> Vec<u8> {
+    std::iter::repeat_with(|| fastrand::u8(..))
+        .take(10000)
+        .collect()
 }
 
 fn bitting(c: &mut Criterion) {
     let parameters: Vec<u32> = (1..65).collect();
+    let data = gen_data();
 
     let mut group = c.benchmark_group("bit-reading");
     for i in parameters {
@@ -42,18 +48,18 @@ fn bitting(c: &mut Criterion) {
 
         group.bench_with_input(BenchmarkId::new("bitter-auto", i), &i, |b, param| {
             b.iter(|| {
-                let mut bitter = LittleEndianReader::new(&DATA[..]);
-                let mut result = bitter.read_bits(1).unwrap();
+                let mut bitter = LittleEndianReader::new(&data);
+                let mut result = bitter.read_bits(1)?;
                 for _ in 0..ITER {
-                    result |= bitter.read_bits(*param).unwrap();
+                    result |= bitter.read_bits(*param)?;
                 }
-                assert_eq!(result, 0);
+                Some(result)
             })
         });
 
         group.bench_with_input(BenchmarkId::new("bitter-manual", i), &i, |b, param| {
             b.iter(|| {
-                let mut bitter = LittleEndianReader::new(&DATA[..]);
+                let mut bitter = LittleEndianReader::new(&data);
                 bitter.refill_lookahead();
                 bitter.consume(1);
                 match *param {
@@ -78,7 +84,7 @@ fn bitting(c: &mut Criterion) {
                             let read = (hi << bitter::MAX_READ_BITS) + lo;
                             result |= read;
                         }
-                        assert_eq!(result, 0);
+                        result
                     }
                 }
             })
@@ -86,7 +92,7 @@ fn bitting(c: &mut Criterion) {
 
         group.bench_with_input(BenchmarkId::new("bitter-unchecked", i), &i, |b, param| {
             b.iter(|| {
-                let mut bitter = LittleEndianReader::new(&DATA[..]);
+                let mut bitter = LittleEndianReader::new(&data);
                 unsafe { bitter.refill_lookahead_unchecked() };
                 bitter.consume(1);
                 match *param {
@@ -112,7 +118,7 @@ fn bitting(c: &mut Criterion) {
                             let read = (hi << bitter::MAX_READ_BITS) + lo;
                             result |= read;
                         }
-                        assert_eq!(result, 0);
+                        result
                     }
                 }
             })
@@ -120,32 +126,34 @@ fn bitting(c: &mut Criterion) {
 
         group.bench_with_input(BenchmarkId::new("bitreader", i), &i, |b, param| {
             b.iter(|| {
-                let mut bitter = BR::new(&DATA);
-                let mut result = bitter.read_u64(1).unwrap();
+                let mut bitter = BR::new(&data);
+                let mut result = bitter.read_u64(1)?;
                 for _ in 0..ITER {
-                    result |= bitter.read_u64(*param as u8).unwrap();
+                    result |= bitter.read_u64(*param as u8)?;
                 }
-                assert_eq!(result, 0);
+                let result: bitreader::Result<u64> = Ok(result);
+                result
             })
         });
 
         group.bench_with_input(BenchmarkId::new("bitstream-io", i), &i, |b, param| {
             b.iter(|| {
-                let mut cursor = Cursor::new(&DATA[..]);
+                let mut cursor = Cursor::new(&data[..]);
                 {
                     let mut bits = bio_br::endian(&mut cursor, LittleEndian);
-                    let mut result = bits.read::<u64>(1).unwrap();
+                    let mut result = bits.read::<1, u64>()?;
                     for _ in 0..ITER {
-                        result |= bits.read::<u64>(*param as u32).unwrap();
+                        result |= bits.read_var::<u64>(*param as u32)?;
                     }
-                    assert_eq!(result, 0);
+                    let result: Result<u64, std::io::Error> = Ok(result);
+                    result
                 }
             });
         });
 
         group.bench_with_input(BenchmarkId::new("bitvec", i), &i, |b, param| {
             b.iter(|| {
-                let mut bits = DATA.view_bits::<Lsb0>();
+                let mut bits = data.view_bits::<Lsb0>();
                 bits = &bits[1..];
                 let mut result = 0;
                 for _ in 0..ITER {
@@ -153,41 +161,42 @@ fn bitting(c: &mut Criterion) {
                     result |= curr.load_le::<u64>();
                     bits = next;
                 }
-                assert_eq!(result, 0);
+                Some(result)
             })
         });
 
         group.bench_with_input(BenchmarkId::new("bitbuffer", i), &i, |b, param| {
             b.iter(|| {
-                let buffer = bitbuffer::BitReadBuffer::new(&DATA[..], bitbuffer::LittleEndian);
+                let buffer = bitbuffer::BitReadBuffer::new(&data, bitbuffer::LittleEndian);
                 let mut stream = bitbuffer::BitReadStream::new(buffer);
-                stream.skip_bits(1).unwrap();
+                stream.skip_bits(1)?;
                 let mut result = 0;
                 for _ in 0..ITER {
-                    result |= stream.read_int::<u64>(*param as usize).unwrap();
+                    result |= stream.read_int::<u64>(*param as usize)?;
                 }
-                assert_eq!(result, 0);
+                let result: bitbuffer::Result<u64> = Ok(result);
+                result
             })
         });
 
         group.bench_with_input(BenchmarkId::new("bitcursor", i), &i, |b, param| {
             b.iter(|| {
-                let mut cursor = llvm_bitcursor::BitCursor::new(&DATA[..]);
-                let mut result = cursor.read(1).unwrap();
+                let mut cursor = llvm_bitcursor::BitCursor::new(&data);
+                let mut result = cursor.read(1)?;
 
                 // bitcursor does not support 64 bit reads
                 if *param == 64 {
                     for _ in 0..ITER {
-                        result |= cursor.read(63).unwrap();
-                        result |= cursor.read(1).unwrap() << 63;
+                        result |= cursor.read(63)?;
+                        result |= cursor.read(1)? << 63;
                     }
                 } else {
                     for _ in 0..ITER {
-                        result |= cursor.read(*param as usize).unwrap();
+                        result |= cursor.read(*param as usize)?;
                     }
                 }
 
-                assert_eq!(result, 0);
+                Ok::<_, llvm_bitcursor::error::Error>(result)
             })
         });
     }
@@ -199,30 +208,35 @@ fn real_world1(c: &mut Criterion) {
     // Parse a rocket league Quaternion, which is bit reads of 2 + 18 + 18 + 18 = 56;
     let mut group = c.benchmark_group("real-world-1");
 
+    let data = gen_data();
+
     group.throughput(Throughput::Bytes((56 as u64 * ITER) / 8));
 
     group.bench_function("bitter-auto", |b| {
         b.iter(|| {
-            let mut bits = LittleEndianReader::new(&DATA);
+            let mut bits = LittleEndianReader::new(&data);
             let mut result = 0;
             for _ in 0..ITER {
-                let a = bits.read_bits(2).unwrap();
-                let b = bits.read_bits(18).unwrap();
-                let c = bits.read_bits(18).unwrap();
-                let d = bits.read_bits(18).unwrap();
+                let a = bits.read_bits(2)?;
+                let b = bits.read_bits(18)?;
+                let c = bits.read_bits(18)?;
+                let d = bits.read_bits(18)?;
                 result |= a + b + c + d;
             }
-            assert_eq!(result, 0);
+            Some(result)
         })
     });
 
     group.bench_function("bitter-manual", |b| {
         b.iter(|| {
-            let mut bits = LittleEndianReader::new(&DATA);
+            let mut bits = LittleEndianReader::new(&data);
             let mut result = 0;
             for _ in 0..ITER {
                 bits.refill_lookahead();
-                assert!(bits.lookahead_bits() >= bitter::MAX_READ_BITS);
+
+                if bits.lookahead_bits() < 56 {
+                    return None;
+                }
 
                 let a = bits.peek(2);
                 bits.consume(2);
@@ -238,13 +252,13 @@ fn real_world1(c: &mut Criterion) {
 
                 result |= a + b + c + d;
             }
-            assert_eq!(result, 0);
+            Some(result)
         })
     });
 
     group.bench_function("bitter-unchecked", |b| {
         b.iter(|| {
-            let mut bits = LittleEndianReader::new(&DATA);
+            let mut bits = LittleEndianReader::new(&data);
             let mut result = 0;
             for _ in 0..ITER {
                 unsafe { bits.refill_lookahead_unchecked() };
@@ -263,7 +277,7 @@ fn real_world1(c: &mut Criterion) {
 
                 result |= a + b + c + d;
             }
-            assert_eq!(result, 0);
+            result
         })
     });
 
@@ -274,31 +288,34 @@ fn real_world2(c: &mut Criterion) {
     // Parse a rocket league Vector3i (simiplified)
     let mut group = c.benchmark_group("real-world-2");
 
+    let data = gen_data();
     group.throughput(Throughput::Bytes((62 as u64 * ITER) / 8));
 
     group.bench_function("bitter-auto", |b| {
         b.iter(|| {
-            let mut bits = LittleEndianReader::new(&DATA);
+            let mut bits = LittleEndianReader::new(&data);
             let mut result = 0;
             for _ in 0..ITER {
-                let a = bits.read_bits(4).unwrap();
-                let b = bits.read_bits(1).unwrap();
-                let c = bits.read_bits(19).unwrap();
-                let d = bits.read_bits(19).unwrap();
-                let e = bits.read_bits(19).unwrap();
+                let a = bits.read_bits(4)?;
+                let b = bits.read_bits(1)?;
+                let c = bits.read_bits(19)?;
+                let d = bits.read_bits(19)?;
+                let e = bits.read_bits(19)?;
                 result |= a + b + c + d + e;
             }
-            assert_eq!(result, 0);
+            Some(result)
         })
     });
 
     group.bench_function("bitter-manual", |b| {
         b.iter(|| {
-            let mut bits = LittleEndianReader::new(&DATA);
+            let mut bits = LittleEndianReader::new(&data);
             let mut result = 0;
             for _ in 0..ITER {
                 bits.refill_lookahead();
-                assert!(bits.lookahead_bits() >= 24);
+                if bits.lookahead_bits() < 24 {
+                    return None;
+                }
                 let a = bits.peek(4);
                 bits.consume(4);
 
@@ -317,13 +334,13 @@ fn real_world2(c: &mut Criterion) {
                 bits.consume(19);
                 result |= a + b + c + d + e;
             }
-            assert_eq!(result, 0);
+            Some(result)
         })
     });
 
     group.bench_function("bitter-unchecked", |b| {
         b.iter(|| {
-            let mut bits = LittleEndianReader::new(&DATA);
+            let mut bits = LittleEndianReader::new(&data);
             let mut result = 0;
             for _ in 0..ITER {
                 unsafe { bits.refill_lookahead_unchecked() };
@@ -346,7 +363,7 @@ fn real_world2(c: &mut Criterion) {
                 bits.consume(19);
                 result |= a + b + c + d + e;
             }
-            assert_eq!(result, 0);
+            result
         })
     });
 
@@ -355,33 +372,34 @@ fn real_world2(c: &mut Criterion) {
 
 fn read_bytes(c: &mut Criterion) {
     let mut group = c.benchmark_group("read_bytes");
+    let data = gen_data();
 
     for i in &[4, 8, 16, 80, 240, 960] {
-        let iterations = (DATA.len() / *i) - 1;
+        let iterations = (data.len() / *i) - 1;
         group.throughput(Throughput::Bytes((iterations * *i) as u64));
 
         group.bench_with_input(BenchmarkId::new("aligned", i), &i, |b, param| {
             let mut buf = vec![0u8; **param];
             b.iter(|| {
-                let mut bitter = LittleEndianReader::new(&DATA[..]);
+                let mut bitter = LittleEndianReader::new(&data);
                 let mut result = true;
                 for _ in 0..iterations {
                     result &= bitter.read_bytes(&mut buf);
                 }
-                assert!(result);
+                result
             })
         });
 
         group.bench_with_input(BenchmarkId::new("unaligned", i), &i, |b, param| {
             let mut buf = vec![0u8; **param];
             b.iter(|| {
-                let mut bitter = LittleEndianReader::new(&DATA[..]);
+                let mut bitter = LittleEndianReader::new(&data);
                 bitter.read_bit();
                 let mut result = true;
                 for _ in 0..iterations {
                     result &= bitter.read_bytes(&mut buf);
                 }
-                assert!(result);
+                result
             })
         });
     }
@@ -392,23 +410,24 @@ fn read_bytes(c: &mut Criterion) {
 fn signed(c: &mut Criterion) {
     let mut group = c.benchmark_group("signed_reads");
 
+    let data = gen_data();
     let bits_to_read = 33;
     group.throughput(Throughput::Bytes((bits_to_read as u64 * ITER) / 8));
 
     group.bench_function("auto", |b| {
         b.iter(|| {
-            let mut bits = LittleEndianReader::new(&DATA[..]);
+            let mut bits = LittleEndianReader::new(&data);
             let mut result = 0;
             for _ in 0..ITER {
-                result |= bits.read_signed_bits(bits_to_read).unwrap();
+                result |= bits.read_signed_bits(bits_to_read)?;
             }
-            assert_eq!(result, 0);
+            Some(result)
         })
     });
 
     group.bench_function("manual", |b| {
         b.iter(|| {
-            let mut bits = LittleEndianReader::new(&DATA[..]);
+            let mut bits = LittleEndianReader::new(&data);
             let mut result = 0;
             for _ in 0..ITER {
                 let _len = bits.refill_lookahead();
@@ -416,7 +435,7 @@ fn signed(c: &mut Criterion) {
                 bits.consume(bits_to_read);
                 result |= bitter::sign_extend(val, bits_to_read);
             }
-            assert_eq!(result, 0);
+            result
         })
     });
 
