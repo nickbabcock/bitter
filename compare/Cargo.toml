@@ -10,17 +10,17 @@ publish = false
 members = ["."]
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["csv_output"] }
-bitbuffer = "0.10.9"
+bitbuffer = "0.11.1"
+bitreader = "0.3.11"
+bitstream-io = "4.2.0"
 bitter = {path = ".." }
-bitreader = "0.3.8"
-bitstream-io = "2.2.0"
-bitvec = "1"
+bitvec = "1.0.1"
+criterion = { version = "0.6", features = ["csv_output"] }
 llvm-bitcursor = "0.0.3"
+fastrand = "2.3.0"
 
-[profile.release]
-lto = true
-codegen-units = 1
+[profile.bench]
+debug = true
 
 [[bench]]
 name = "bench_bits"
