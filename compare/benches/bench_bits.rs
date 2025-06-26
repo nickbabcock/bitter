@@ -1,6 +1,5 @@
 use bitreader::BitReader as BR;
 use bitstream_io::{BitRead, BitReader as bio_br, LittleEndian};
-use bitter;
 use bitter::{BitReader, LittleEndianReader};
 use bitvec::{field::BitField, order::Lsb0, view::BitView};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
@@ -143,7 +142,7 @@ fn bitting(c: &mut Criterion) {
                     let mut bits = bio_br::endian(&mut cursor, LittleEndian);
                     let mut result = bits.read::<1, u64>()?;
                     for _ in 0..ITER {
-                        result |= bits.read_var::<u64>(*param as u32)?;
+                        result |= bits.read_var::<u64>(*param)?;
                     }
                     let result: Result<u64, std::io::Error> = Ok(result);
                     result
@@ -210,7 +209,7 @@ fn real_world1(c: &mut Criterion) {
 
     let data = gen_data();
 
-    group.throughput(Throughput::Bytes((56 as u64 * ITER) / 8));
+    group.throughput(Throughput::Bytes((56 * ITER) / 8));
 
     group.bench_function("bitter-auto", |b| {
         b.iter(|| {
@@ -383,7 +382,7 @@ fn real_world2(c: &mut Criterion) {
     let mut group = c.benchmark_group("real-world-2");
 
     let data = gen_data();
-    group.throughput(Throughput::Bytes((62 as u64 * ITER) / 8));
+    group.throughput(Throughput::Bytes((62 * ITER) / 8));
 
     group.bench_function("bitter-auto", |b| {
         b.iter(|| {
@@ -524,12 +523,176 @@ fn signed(c: &mut Criterion) {
             let mut bits = LittleEndianReader::new(&data);
             let mut result = 0;
             for _ in 0..ITER {
-                let _len = bits.refill_lookahead();
+                bits.refill_lookahead();
                 let val = bits.peek(bits_to_read);
                 bits.consume(bits_to_read);
                 result |= bitter::sign_extend(val, bits_to_read);
             }
             result
+        })
+    });
+
+    group.finish();
+}
+
+fn random_bit_reads(c: &mut Criterion) {
+    let mut group = c.benchmark_group("random");
+
+    // Generate 1000 random bit read sizes between 1 and 63
+    let bit_read_requests: Vec<u32> = (0..1000).map(|_| fastrand::u32(1..=63)).collect();
+
+    // Calculate total bits to ensure we have enough data
+    let total_bits: u32 = bit_read_requests.iter().sum();
+    let required_bytes = total_bits.div_ceil(8) as usize + 1000;
+    let data: Vec<u8> = std::iter::repeat_with(|| fastrand::u8(..))
+        .take(required_bytes)
+        .collect();
+
+    group.throughput(Throughput::Bytes(total_bits as u64 / 8));
+
+    group.bench_function("bitter-auto", |b| {
+        b.iter(|| {
+            let mut bitter = LittleEndianReader::new(&data);
+            let mut result = 0u64;
+            for &bits in &bit_read_requests {
+                let val = bitter.read_bits(bits)?;
+                result = result.wrapping_add(val);
+            }
+            Some(result)
+        })
+    });
+
+    group.bench_function("bitter-manual", |b| {
+        b.iter(|| {
+            let mut bitter = LittleEndianReader::new(&data);
+            let mut result = 0u64;
+
+            for &bits_to_read in &bit_read_requests {
+                if bits_to_read <= bitter::MAX_READ_BITS {
+                    if bits_to_read > bitter.lookahead_bits() {
+                        bitter.refill_lookahead();
+                    }
+                    let val = bitter.peek(bits_to_read);
+                    bitter.consume(bits_to_read);
+                    result = result.wrapping_add(val);
+                } else {
+                    // Handle large reads by stitching together multiple reads
+                    let lo_bits = bitter::MAX_READ_BITS;
+                    let hi_bits = bits_to_read - bitter::MAX_READ_BITS;
+
+                    bitter.refill_lookahead();
+                    let lo = bitter.peek(lo_bits);
+                    bitter.consume(lo_bits);
+
+                    bitter.refill_lookahead();
+                    let hi = bitter.peek(hi_bits);
+                    bitter.consume(hi_bits);
+
+                    let val = (hi << bitter::MAX_READ_BITS) + lo;
+                    result = result.wrapping_add(val);
+                }
+            }
+            result
+        })
+    });
+
+    group.bench_function("bitter-unchecked", |b| {
+        b.iter(|| {
+            let mut bitter = LittleEndianReader::new(&data);
+            let mut result = 0u64;
+
+            for &bits_to_read in &bit_read_requests {
+                if bits_to_read <= bitter::MAX_READ_BITS {
+                    if bits_to_read > bitter.lookahead_bits() {
+                        unsafe { bitter.refill_lookahead_unchecked() };
+                    }
+                    let val = bitter.peek(bits_to_read);
+                    bitter.consume(bits_to_read);
+                    result = result.wrapping_add(val);
+                } else {
+                    // Handle large reads by stitching together multiple reads
+                    let lo_bits = bitter::MAX_READ_BITS;
+                    let hi_bits = bits_to_read - bitter::MAX_READ_BITS;
+
+                    unsafe { bitter.refill_lookahead_unchecked() };
+                    let lo = bitter.peek(lo_bits);
+                    bitter.consume(lo_bits);
+
+                    unsafe { bitter.refill_lookahead_unchecked() };
+                    let hi = bitter.peek(hi_bits);
+                    bitter.consume(hi_bits);
+
+                    let val = (hi << bitter::MAX_READ_BITS) + lo;
+                    result = result.wrapping_add(val);
+                }
+            }
+            result
+        })
+    });
+
+    group.bench_function("bitreader", |b| {
+        b.iter(|| {
+            let mut bitter = BR::new(&data);
+            let mut result = 0u64;
+            for &bits in &bit_read_requests {
+                let val = bitter.read_u64(bits as u8)?;
+                result = result.wrapping_add(val);
+            }
+            Ok::<_, bitreader::BitReaderError>(result)
+        })
+    });
+
+    group.bench_function("bitstream-io", |b| {
+        b.iter(|| {
+            let mut cursor = Cursor::new(&data[..]);
+            let mut bits = bio_br::endian(&mut cursor, LittleEndian);
+            let mut result = 0u64;
+            for &bits_to_read in &bit_read_requests {
+                let val = bits.read_var::<u64>(bits_to_read)?;
+                result = result.wrapping_add(val);
+            }
+            Ok::<_, std::io::Error>(result)
+        })
+    });
+
+    group.bench_function("bitvec", |b| {
+        b.iter(|| {
+            let mut bits_view = data.view_bits::<Lsb0>();
+            let mut result = 0u64;
+            for &bits_to_read in &bit_read_requests {
+                if bits_view.len() >= bits_to_read as usize {
+                    let (curr, next) = bits_view.split_at(bits_to_read as usize);
+                    let val = curr.load_le::<u64>();
+                    result = result.wrapping_add(val);
+                    bits_view = next;
+                }
+            }
+            result
+        })
+    });
+
+    group.bench_function("bitbuffer", |b| {
+        b.iter(|| {
+            let buffer = bitbuffer::BitReadBuffer::new(&data, bitbuffer::LittleEndian);
+            let mut stream = bitbuffer::BitReadStream::new(buffer);
+            let mut result = 0u64;
+            for &bits_to_read in &bit_read_requests {
+                let val = stream.read_int::<u64>(bits_to_read as usize)?;
+                result = result.wrapping_add(val);
+            }
+            Ok::<_, bitbuffer::BitError>(result)
+        })
+    });
+
+    group.bench_function("bitcursor", |b| {
+        b.iter(|| {
+            let mut cursor = llvm_bitcursor::BitCursor::new(&data);
+            let mut result = 0u64;
+            for &bits_to_read in &bit_read_requests {
+                let val = cursor.read(bits_to_read as usize)?;
+                result = result.wrapping_add(val);
+            }
+            Ok::<_, llvm_bitcursor::error::Error>(result)
         })
     });
 
@@ -542,7 +705,8 @@ criterion_group!(
     real_world1,
     real_world2,
     read_bytes,
-    signed
+    signed,
+    random_bit_reads
 );
 
 criterion_main!(benches);
