@@ -281,6 +281,100 @@ fn real_world1(c: &mut Criterion) {
         })
     });
 
+    group.bench_function("bitreader", |b| {
+        b.iter(|| {
+            let mut bits = BR::new(&data);
+            let mut result = 0;
+            for _ in 0..ITER {
+                let a = bits.read_u8(2)? as u64;
+                let b = bits.read_u32(18)? as u64;
+                let c = bits.read_u32(18)? as u64;
+                let d = bits.read_u32(18)? as u64;
+                result |= a + b + c + d;
+            }
+            let result: bitreader::Result<u64> = Ok(result);
+            result
+        })
+    });
+
+    group.bench_function("bitstream-io", |b| {
+        b.iter(|| {
+            let mut cursor = Cursor::new(&data[..]);
+            {
+                let mut bits = bio_br::endian(&mut cursor, LittleEndian);
+                let mut result = 0;
+                for _ in 0..ITER {
+                    let a = bits.read::<2, u8>()? as u64;
+                    let b = bits.read::<18, u32>()? as u64;
+                    let c = bits.read::<18, u32>()? as u64;
+                    let d = bits.read::<18, u32>()? as u64;
+                    result |= a + b + c + d;
+                }
+                let result: Result<u64, std::io::Error> = Ok(result);
+                result
+            }
+        })
+    });
+
+    group.bench_function("bitvec", |b| {
+        b.iter(|| {
+            let mut bits = data.view_bits::<Lsb0>();
+            let mut result = 0;
+            for _ in 0..ITER {
+                let (curr, next) = bits.split_at(2);
+                let a = curr.load_le::<u64>();
+                bits = next;
+
+                let (curr, next) = bits.split_at(18);
+                let b = curr.load_le::<u64>();
+                bits = next;
+
+                let (curr, next) = bits.split_at(18);
+                let c = curr.load_le::<u64>();
+                bits = next;
+
+                let (curr, next) = bits.split_at(18);
+                let d = curr.load_le::<u64>();
+                bits = next;
+
+                result |= a + b + c + d;
+            }
+            Some(result)
+        })
+    });
+
+    group.bench_function("bitbuffer", |b| {
+        b.iter(|| {
+            let buffer = bitbuffer::BitReadBuffer::new(&data, bitbuffer::LittleEndian);
+            let mut stream = bitbuffer::BitReadStream::new(buffer);
+            let mut result = 0;
+            for _ in 0..ITER {
+                let a = stream.read_int::<u64>(2)?;
+                let b = stream.read_int::<u64>(18)?;
+                let c = stream.read_int::<u64>(18)?;
+                let d = stream.read_int::<u64>(18)?;
+                result |= a + b + c + d;
+            }
+            let result: bitbuffer::Result<u64> = Ok(result);
+            result
+        })
+    });
+
+    group.bench_function("bitcursor", |b| {
+        b.iter(|| {
+            let mut cursor = llvm_bitcursor::BitCursor::new(&data);
+            let mut result = 0;
+            for _ in 0..ITER {
+                let a = cursor.read(2)?;
+                let b = cursor.read(18)?;
+                let c = cursor.read(18)?;
+                let d = cursor.read(18)?;
+                result |= a + b + c + d;
+            }
+            Ok::<_, llvm_bitcursor::error::Error>(result)
+        })
+    });
+
     group.finish();
 }
 
