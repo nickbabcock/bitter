@@ -519,6 +519,7 @@ const BIT_WIDTH: usize = BYTE_WIDTH * 8;
 /// intervals regardless of what's available.
 pub const MAX_READ_BITS: u32 = 56;
 
+#[derive(Debug, Clone, Copy)]
 struct BitterState<'a, const LE: bool> {
     /// Pointer of next byte for lookahead
     data: &'a [u8],
@@ -911,6 +912,7 @@ impl<const LE: bool> BitReader for BitterState<'_, LE> {
 /// let mut lebits = LittleEndianReader::new(&[0b0000_0001]);
 /// assert_eq!(lebits.read_bit(), Some(true));
 /// ```
+#[derive(Debug, Clone, Copy)]
 pub struct LittleEndianReader<'a>(BitterState<'a, true>);
 
 impl<'a> LittleEndianReader<'a> {
@@ -1056,6 +1058,7 @@ impl BitReader for LittleEndianReader<'_> {
 /// let mut bebits = BigEndianReader::new(&[0b1000_0000]);
 /// assert_eq!(bebits.read_bit(), Some(true));
 /// ```
+#[derive(Debug, Clone, Copy)]
 pub struct BigEndianReader<'a>(BitterState<'a, false>);
 
 impl<'a> BigEndianReader<'a> {
