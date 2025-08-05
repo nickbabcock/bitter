@@ -1,3 +1,9 @@
+## 0.8.0 - 2025-08-05
+
+- **New Write API**: Introduce `BitWriter` trait for bit-level writing operations
+- Add `BitReader::remainder()` method to recover unconsumed data
+- Implement `Debug`, `Clone`, and `Copy` traits on bit readers
+
 ## 0.7.1 - 2024-12-19
 
 - Expose the number of unbuffered bytes remaining via `BitReader::unbuffered_bytes_remaining`
