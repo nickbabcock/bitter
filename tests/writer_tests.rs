@@ -576,7 +576,7 @@ fn test_into_inner_error_recovery() {
     impl std::io::Write for FailingWriter {
         fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
             if self.should_fail_flush && !buf.is_empty() {
-                Err(Error::new(ErrorKind::Other, "write failed during flush"))
+                Err(Error::other("write failed during flush"))
             } else {
                 Ok(buf.len())
             }
