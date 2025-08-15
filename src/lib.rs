@@ -545,7 +545,7 @@ pub trait BitReader {
     /// assert_eq!(remainder.partial_byte(), 0b0001_0101);
     /// assert_eq!(remainder.data(), &[0b0101_0101, 0b1100_0011]);
     /// ```
-    fn remainder(&self) -> Remainder;
+    fn remainder(&self) -> Remainder<'_>;
 }
 
 const BYTE_WIDTH: usize = core::mem::size_of::<u64>();
@@ -960,7 +960,7 @@ impl<const LE: bool> BitReader for BitterState<'_, LE> {
         self.bit_count % 8 == 0
     }
 
-    fn remainder(&self) -> Remainder {
+    fn remainder(&self) -> Remainder<'_> {
         // Calculate how many bits are not byte-aligned
         let unaligned_bits = self.bit_count % 8;
 
@@ -1189,7 +1189,7 @@ impl BitReader for LittleEndianReader<'_> {
     }
 
     #[inline]
-    fn remainder(&self) -> Remainder {
+    fn remainder(&self) -> Remainder<'_> {
         self.0.remainder()
     }
 }
@@ -1340,7 +1340,7 @@ impl BitReader for BigEndianReader<'_> {
     }
 
     #[inline]
-    fn remainder(&self) -> Remainder {
+    fn remainder(&self) -> Remainder<'_> {
         self.0.remainder()
     }
 }
