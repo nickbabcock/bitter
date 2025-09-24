@@ -706,31 +706,24 @@ fn write_bytes(c: &mut Criterion) {
 
 
     for i in &[4, 8, 16, 80, 240, 960] {
-        let iterations = (data.len() / *i) - 1;
-        group.throughput(Throughput::Bytes((iterations * *i) as u64));
+        group.throughput(Throughput::Bytes((*i) as u64));
+
+        let data = data[..*i].to_vec();
 
         group.bench_with_input(BenchmarkId::new("aligned", i), &i, |b, param| {
             let mut buf = vec![0u8; **param];
             b.iter(|| {
                 let mut bitter = LittleEndianWriter::new(&mut buf);
-                for _ in 0..iterations {
-                    bitter.write_bytes(&data)?;
-                }
-
-                Ok::<_, std::io::Error>(())
+                bitter.write_bytes(&data)
             })
         });
 
         group.bench_with_input(BenchmarkId::new("unaligned", i), &i, |b, param| {
-            let mut buf = vec![0u8; **param];
+            let mut buf = vec![0u8; **param + 1]; // To fit the extra bit and prevent vec extension
             b.iter(|| {
                 let mut bitter = LittleEndianWriter::new(&mut buf);
                 bitter.write_bit(true);
-                for _ in 0..iterations {
-                    bitter.write_bytes(&data)?;
-                }
-
-                Ok::<_, std::io::Error>(())
+                bitter.write_bytes(&data)
             })
         });
     }
