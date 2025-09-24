@@ -1,5 +1,3 @@
-use crate::BIT_WIDTH;
-use core::convert::TryInto;
 use std::error::Error;
 use std::fmt;
 use std::io::{Result, Write};
@@ -668,19 +666,19 @@ impl<W: Write, const LE: bool> BitWriter for BitterWriter<W, LE> {
             self.writer.write_all(buf)?;
         } else {
             // Slow path: we write in chunks when possible to write as fast as possible
-            for chunk in buf.chunks(8) {
-                if let Ok(chunk) =  chunk.try_into() {
-                    let value = if LE {
-                        u64::from_le_bytes(chunk)
-                    } else {
-                        u64::from_be_bytes(chunk)
-                    };
-                    self.write_bits_internal(64, value)?;
+            let mut chunks = buf.chunks_exact(8);
+            for c in chunks.by_ref() {
+                let arr = [c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]];
+                let value = if LE {
+                    u64::from_le_bytes(arr)
                 } else {
-                    for byte in chunk {
-                        self.write_bits_internal(8, *byte as u64)?;
-                    } 
-                }
+                    u64::from_be_bytes(arr)
+                };
+                self.write_bits_internal(64, value)?;
+            }
+
+            for &byte in chunks.remainder() {
+                self.write_bits_internal(8, byte as u64)?;
             }
         }
         Ok(())
