@@ -708,21 +708,19 @@ fn write_bytes(c: &mut Criterion) {
     for i in &[4, 8, 16, 80, 240, 960] {
         group.throughput(Throughput::Bytes((*i) as u64));
 
-        let data = data[..*i].to_vec();
+        let data = &data[..*i];
 
         group.bench_with_input(BenchmarkId::new("aligned", i), &i, |b, param| {
-            let mut buf = vec![0u8; **param];
+            let mut bitter = LittleEndianWriter::new(std::io::sink());
             b.iter(|| {
-                let mut bitter = LittleEndianWriter::new(&mut buf);
                 bitter.write_bytes(&data)
             })
         });
 
         group.bench_with_input(BenchmarkId::new("unaligned", i), &i, |b, param| {
-            let mut buf = vec![0u8; **param + 1]; // To fit the extra bit and prevent vec extension
+            let mut bitter = LittleEndianWriter::new(std::io::sink());
+            bitter.write_bit(true);
             b.iter(|| {
-                let mut bitter = LittleEndianWriter::new(&mut buf);
-                bitter.write_bit(true);
                 bitter.write_bytes(&data)
             })
         });
