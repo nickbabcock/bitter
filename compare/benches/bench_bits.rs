@@ -3,7 +3,7 @@ use bitstream_io::{BitRead, BitReader as bio_br, LittleEndian};
 use bitter::{BitReader, BitWriter, LittleEndianReader, LittleEndianWriter};
 use bitvec::{field::BitField, order::Lsb0, view::BitView};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use std::io::{Cursor, Write};
+use std::io::Cursor;
 
 const ITER: u64 = 1000;
 
@@ -704,30 +704,34 @@ fn write_bytes(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("write_bytes");
 
-
+    const ITERATIONS: usize = 1024;
     for i in &[4, 8, 16, 80, 240, 960] {
-        group.throughput(Throughput::Bytes((*i) as u64));
+        group.throughput(Throughput::Bytes((ITERATIONS * *i) as u64));
 
         let data = &data[..*i];
-
-        group.bench_with_input(BenchmarkId::new("aligned", i), &i, |b, param| {
+        group.bench_with_input(BenchmarkId::new("aligned", i), &i, |b, _param| {
             let mut bitter = LittleEndianWriter::new(std::io::sink());
             b.iter(|| {
-                bitter.write_bytes(&data)
-            })
+                for _ in 0..ITERATIONS {
+                    bitter.write_bytes(&data)?;
+                }
+                Ok::<_, std::io::Error>(())
+            });
         });
 
-        group.bench_with_input(BenchmarkId::new("unaligned", i), &i, |b, param| {
+        group.bench_with_input(BenchmarkId::new("unaligned", i), &i, |b, _param| {
             let mut bitter = LittleEndianWriter::new(std::io::sink());
-            bitter.write_bit(true);
+            bitter.write_bit(true).expect("can write bit");
             b.iter(|| {
-                bitter.write_bytes(&data)
-            })
+                for _ in 0..ITERATIONS {
+                    bitter.write_bytes(&data)?;
+                }
+                Ok::<_, std::io::Error>(())
+            });
         });
     }
 
     group.finish();
-
 }
 
 criterion_group!(
