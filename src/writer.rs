@@ -1,4 +1,3 @@
-use crate::BIT_WIDTH;
 use std::error::Error;
 use std::fmt;
 use std::io::{Result, Write};
@@ -500,21 +499,28 @@ impl<W: Write, const LE: bool> BitterWriter<W, LE> {
     }
 
     #[inline]
-    fn flush_byte(&mut self) -> Result<()> {
-        if self.bit_count >= 8 {
-            let byte = if LE {
-                (self.bit_buf & 0xff) as u8
+    fn flush_bytes(&mut self) -> Result<()> {
+        let full_bytes = (self.bit_count / 8) as usize;
+        let flush_bits = full_bytes * 8;
+        if full_bytes > 0 {
+            let bytes = if LE {
+                self.bit_buf.to_le_bytes()
             } else {
-                (self.bit_buf >> (BIT_WIDTH - 8)) as u8
+                self.bit_buf.to_be_bytes()
             };
-            self.writer.write_all(&[byte])?;
+            self.writer.write_all(&bytes[..full_bytes])?;
 
-            if LE {
-                self.bit_buf >>= 8;
+            if full_bytes < 8 {
+                if LE {
+                    self.bit_buf >>= flush_bits;
+                } else {
+                    self.bit_buf <<= flush_bits;
+                }
+                self.bit_count -= flush_bits as u32;
             } else {
-                self.bit_buf <<= 8;
+                self.bit_buf = 0;
+                self.bit_count = 0;
             }
-            self.bit_count -= 8;
         }
         Ok(())
     }
@@ -559,9 +565,7 @@ impl<W: Write, const LE: bool> BitterWriter<W, LE> {
             bits -= bits_to_write;
 
             // Flush full bytes
-            while self.bit_count >= 8 {
-                self.flush_byte()?;
-            }
+            self.flush_bytes()?;
         }
 
         Ok(())
@@ -661,9 +665,20 @@ impl<W: Write, const LE: bool> BitWriter for BitterWriter<W, LE> {
             // Fast path: if we're byte-aligned, we can write directly to the underlying writer
             self.writer.write_all(buf)?;
         } else {
-            // Slow path: write each byte bit by bit when not aligned
-            for byte in buf {
-                self.write_bits_internal(8, *byte as u64)?;
+            // Slow path: we write in chunks when possible to write as fast as possible
+            let mut chunks = buf.chunks_exact(8);
+            for c in chunks.by_ref() {
+                let arr = [c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]];
+                let value = if LE {
+                    u64::from_le_bytes(arr)
+                } else {
+                    u64::from_be_bytes(arr)
+                };
+                self.write_bits_internal(64, value)?;
+            }
+
+            for &byte in chunks.remainder() {
+                self.write_bits_internal(8, byte as u64)?;
             }
         }
         Ok(())

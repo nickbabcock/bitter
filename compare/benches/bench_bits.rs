@@ -1,9 +1,9 @@
 use bitreader::BitReader as BR;
 use bitstream_io::{BitRead, BitReader as bio_br, LittleEndian};
-use bitter::{BitReader, LittleEndianReader};
+use bitter::{BitReader, BitWriter, LittleEndianReader, LittleEndianWriter};
 use bitvec::{field::BitField, order::Lsb0, view::BitView};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use std::io::Cursor;
+use std::io::{Cursor, Write};
 
 const ITER: u64 = 1000;
 
@@ -699,6 +699,37 @@ fn random_bit_reads(c: &mut Criterion) {
     group.finish();
 }
 
+fn write_bytes(c: &mut Criterion) {
+    let data = gen_data();
+
+    let mut group = c.benchmark_group("write_bytes");
+
+
+    for i in &[4, 8, 16, 80, 240, 960] {
+        group.throughput(Throughput::Bytes((*i) as u64));
+
+        let data = &data[..*i];
+
+        group.bench_with_input(BenchmarkId::new("aligned", i), &i, |b, param| {
+            let mut bitter = LittleEndianWriter::new(std::io::sink());
+            b.iter(|| {
+                bitter.write_bytes(&data)
+            })
+        });
+
+        group.bench_with_input(BenchmarkId::new("unaligned", i), &i, |b, param| {
+            let mut bitter = LittleEndianWriter::new(std::io::sink());
+            bitter.write_bit(true);
+            b.iter(|| {
+                bitter.write_bytes(&data)
+            })
+        });
+    }
+
+    group.finish();
+
+}
+
 criterion_group!(
     benches,
     bitting,
@@ -706,7 +737,8 @@ criterion_group!(
     real_world2,
     read_bytes,
     signed,
-    random_bit_reads
+    random_bit_reads,
+    write_bytes
 );
 
 criterion_main!(benches);
