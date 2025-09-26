@@ -723,8 +723,12 @@ impl<const LE: bool> BitReader for BitterState<'_, LE> {
     gen_read!(read_i16, i16);
     gen_read!(read_u32, u32);
     gen_read!(read_i32, i32);
-    gen_read!(read_u64, u64);
     gen_read!(read_i64, i64);
+
+    #[inline]
+    fn read_u64(&mut self) -> Option<u64> {
+        self.read_bits(64)
+    }
 
     fn read_bit(&mut self) -> Option<bool> {
         self.read_bits(1).map(|x| x == 1)
@@ -944,9 +948,9 @@ impl<const LE: bool> BitReader for BitterState<'_, LE> {
     #[inline]
     unsafe fn refill_lookahead_unchecked(&mut self) {
         debug_assert!(self.unbuffered_bytes() >= 8);
-        let result = self.data.as_ptr().cast::<u64>().read_unaligned();
+        let result = unsafe { self.data.as_ptr().cast::<u64>().read_unaligned() };
         let shift = self.refill_shift(Self::which(result));
-        self.data = self.data.get_unchecked(shift..);
+        self.data = unsafe { self.data.get_unchecked(shift..) };
         self.bit_count |= MAX_READ_BITS;
     }
 
@@ -1180,7 +1184,7 @@ impl BitReader for LittleEndianReader<'_> {
 
     #[inline]
     unsafe fn refill_lookahead_unchecked(&mut self) {
-        self.0.refill_lookahead_unchecked();
+        unsafe { self.0.refill_lookahead_unchecked() };
     }
 
     #[inline]
@@ -1331,7 +1335,7 @@ impl BitReader for BigEndianReader<'_> {
 
     #[inline]
     unsafe fn refill_lookahead_unchecked(&mut self) {
-        self.0.refill_lookahead_unchecked();
+        unsafe { self.0.refill_lookahead_unchecked() };
     }
 
     #[inline]
