@@ -1,3 +1,8 @@
+## 0.8.1 - 2025-09-26
+
+- Large performance improvement to unaligned `write_bytes`
+- Optimize byte flushing to flush all bytes instead of a byte at a time.
+
 ## 0.8.0 - 2025-08-05
 
 - **New Write API**: Introduce `BitWriter` trait for bit-level writing operations
