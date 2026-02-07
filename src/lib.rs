@@ -192,7 +192,7 @@ mod writer;
 pub use writer::*;
 
 /// Read bits in a given endian order
-pub trait BitReader<'a> {
+pub trait BitReader {
     /// Consume a bit and return if the bit was enabled
     ///
     /// ```rust
@@ -545,7 +545,7 @@ pub trait BitReader<'a> {
     /// assert_eq!(remainder.partial_byte(), 0b0001_0101);
     /// assert_eq!(remainder.data(), &[0b0101_0101, 0b1100_0011]);
     /// ```
-    fn remainder(&self) -> Remainder<'a>;
+    fn remainder(&self) -> Remainder<'_>;
 }
 
 const BYTE_WIDTH: usize = core::mem::size_of::<u64>();
@@ -716,7 +716,7 @@ macro_rules! gen_read {
     };
 }
 
-impl<'a, const LE: bool> BitReader<'a> for BitterState<'a, LE> {
+impl<const LE: bool> BitReader for BitterState<'_, LE> {
     gen_read!(read_u8, u8);
     gen_read!(read_i8, i8);
     gen_read!(read_u16, u16);
@@ -964,7 +964,7 @@ impl<'a, const LE: bool> BitReader<'a> for BitterState<'a, LE> {
         self.bit_count % 8 == 0
     }
 
-    fn remainder(&self) -> Remainder<'a> {
+    fn remainder(&self) -> Remainder<'_> {
         // Calculate how many bits are not byte-aligned
         let unaligned_bits = self.bit_count % 8;
 
@@ -1066,7 +1066,7 @@ impl<'a> LittleEndianReader<'a> {
     }
 }
 
-impl<'a> BitReader<'a> for LittleEndianReader<'a> {
+impl BitReader for LittleEndianReader<'_> {
     #[inline]
     fn read_bit(&mut self) -> Option<bool> {
         self.0.read_bit()
@@ -1193,7 +1193,7 @@ impl<'a> BitReader<'a> for LittleEndianReader<'a> {
     }
 
     #[inline]
-    fn remainder(&self) -> Remainder<'a> {
+    fn remainder(&self) -> Remainder<'_> {
         self.0.remainder()
     }
 }
@@ -1217,7 +1217,7 @@ impl<'a> BigEndianReader<'a> {
     }
 }
 
-impl<'a> BitReader<'a> for BigEndianReader<'a> {
+impl BitReader for BigEndianReader<'_> {
     #[inline]
     fn read_bit(&mut self) -> Option<bool> {
         self.0.read_bit()
@@ -1344,7 +1344,7 @@ impl<'a> BitReader<'a> for BigEndianReader<'a> {
     }
 
     #[inline]
-    fn remainder(&self) -> Remainder<'a> {
+    fn remainder(&self) -> Remainder<'_> {
         self.0.remainder()
     }
 }

@@ -2,7 +2,7 @@ use bitter::{BigEndianReader, BitReader, LittleEndianReader};
 use quickcheck::TestResult;
 use quickcheck_macros::quickcheck;
 
-fn _test_bit_reads_auto<'a, T: BitReader<'a>>(mut bitter: T, data: &[u8]) {
+fn _test_bit_reads_auto<T: BitReader>(mut bitter: T, data: &[u8]) {
     assert!(bitter.has_bits_remaining(data.len() * 8));
     assert!(!bitter.has_bits_remaining(data.len() * 8 + 1));
     assert_eq!(bitter.read_bits(1), Some(0));
@@ -190,7 +190,7 @@ fn test_read_bytes_large(mut data: Vec<u8>, buf_len: u8) {
     assert_eq!(buf[74], 0b1100_0000);
 }
 
-fn _test_read_bytes_equiv<'a, T: BitReader<'a>>(mut bitter1: T, mut bitter2: T, buf_len: u8, shift: u8) {
+fn _test_read_bytes_equiv<T: BitReader>(mut bitter1: T, mut bitter2: T, buf_len: u8, shift: u8) {
     let mut buf1 = vec![0u8; usize::from(buf_len)];
     let mut buf2 = vec![0u8; usize::from(buf_len)];
 
@@ -252,7 +252,7 @@ fn test_bit_reads(data: Vec<u8>) {
     }
 }
 
-fn _test_bit_reads2<'a, T: BitReader<'a>>(mut bitter: T, bits: u32) {
+fn _test_bit_reads2<T: BitReader>(mut bitter: T, bits: u32) {
     let chunk = bits % 64 + 1;
     while bitter.has_bits_remaining(chunk as usize) {
         let mut chunk_remaining = chunk;
@@ -357,7 +357,7 @@ fn read_byte_alternate(data: Vec<u8>) -> bool {
 
 #[quickcheck]
 fn has_bits_remaining_bit_reads_ends(reads: u8, data: Vec<u8>) -> bool {
-    fn test_fn<'a, B: BitReader<'a>>(bits: &mut B, reads: u8) -> bool {
+    fn test_fn<B: BitReader>(bits: &mut B, reads: u8) -> bool {
         let mut result = true;
         if bits.has_bits_remaining(usize::from(reads)) {
             for _ in 0..reads {
