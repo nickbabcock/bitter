@@ -497,13 +497,19 @@ fn read_ergonomics(i8: i8, u8: u8, i16: i16, u16: u16, i32: i32, u32: u32, i64: 
 
 #[test]
 fn remainder_lifetime() {
-    fn helper<'a>(reader: &LittleEndianReader<'a>) -> bitter::Remainder<'a> {
+    fn helper_le<'a>(reader: &LittleEndianReader<'a>) -> bitter::Remainder<'a> {
+        reader.remainder()
+    }
+
+    fn helper_be<'a>(reader: &BigEndianReader<'a>) -> bitter::Remainder<'a> {
         reader.remainder()
     }
 
     // The whole point of this test is to fail at compile time if the
     // remainder() function doesn't return the slice with the same
     // lifetime as the underlying data.
-    let reader = LittleEndianReader::new(&[]);
-    helper(&reader);
+    let le = LittleEndianReader::new(&[]);
+    helper_le(&le);
+    let be = BigEndianReader::new(&[]);
+    helper_be(&be);
 }
