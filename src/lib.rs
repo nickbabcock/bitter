@@ -525,27 +525,6 @@ pub trait BitReader {
     /// assert!(!bits.byte_aligned());
     /// ```
     fn byte_aligned(&self) -> bool;
-
-    /// Returns the remainder of unread data.
-    ///
-    /// ```rust
-    /// # use bitter::{LittleEndianReader, BitReader};
-    /// let mut bits = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101, 0b1100_0011]);
-    ///
-    /// // When byte-aligned, no partial bits
-    /// let remainder = bits.remainder();
-    /// assert_eq!(remainder.partial_bits(), 0);
-    /// assert_eq!(remainder.data(), &[0b1010_1010, 0b0101_0101, 0b1100_0011]);
-    ///
-    /// // After reading 3 bits, we have 5 bits remaining in a partially read byte
-    /// assert_eq!(bits.read_bits(3), Some(0b010));
-    /// let remainder = bits.remainder();
-    ///
-    /// assert_eq!(remainder.partial_bits(), 5);
-    /// assert_eq!(remainder.partial_byte(), 0b0001_0101);
-    /// assert_eq!(remainder.data(), &[0b0101_0101, 0b1100_0011]);
-    /// ```
-    fn remainder(&self) -> Remainder<'_>;
 }
 
 const BYTE_WIDTH: usize = core::mem::size_of::<u64>();
@@ -703,6 +682,42 @@ impl<'a, const LE: bool> BitterState<'a, LE> {
     fn has_bits_remaining(&self, bits: usize) -> bool {
         let bytes = self.unbuffered_bytes();
         bytes >= bits || (bytes * 8 + (self.bit_count) as usize) >= bits
+    }
+
+    fn remainder(&self) -> Remainder<'a> {
+        // Calculate how many bits are not byte-aligned
+        let unaligned_bits = self.bit_count % 8;
+
+        // Use pointer arithmetic to reconstruct the original data slice
+        let lookahead_bytes = (self.bit_count / 8) as usize;
+        let current_ptr = self.data.as_ptr();
+        let total_remaining = lookahead_bytes + self.data.len();
+
+        // SAFETY: We use pointer arithmetic to go backwards from self.data to
+        // reconstruct the data that's currently in the lookahead buffer. This
+        // is sound because:
+        // 1. The lookahead buffer was populated from bytes immediately before
+        //    self.data
+        // 2. We only go back by the number of complete bytes in lookahead
+        //    buffer
+        // 3. The resulting slice has the same lifetime as the original data
+        //
+        // This requires miri tree borrows to track that the borrow is still
+        // within the bounds of the allocation.
+        let start_ptr = unsafe { current_ptr.sub(lookahead_bytes) };
+        let remaining_slice = unsafe { core::slice::from_raw_parts(start_ptr, total_remaining) };
+
+        if unaligned_bits == 0 {
+            Remainder::new(0, 0, remaining_slice)
+        } else {
+            let partial_byte = if LE {
+                (self.bit_buf & ((1 << unaligned_bits) - 1)) as u8
+            } else {
+                (self.bit_buf >> (BIT_WIDTH - unaligned_bits as usize)) as u8
+            };
+
+            Remainder::new(partial_byte, unaligned_bits as u8, remaining_slice)
+        }
     }
 }
 
@@ -963,42 +978,6 @@ impl<const LE: bool> BitReader for BitterState<'_, LE> {
     fn byte_aligned(&self) -> bool {
         self.bit_count % 8 == 0
     }
-
-    fn remainder(&self) -> Remainder<'_> {
-        // Calculate how many bits are not byte-aligned
-        let unaligned_bits = self.bit_count % 8;
-
-        // Use pointer arithmetic to reconstruct the original data slice
-        let lookahead_bytes = (self.bit_count / 8) as usize;
-        let current_ptr = self.data.as_ptr();
-        let total_remaining = lookahead_bytes + self.data.len();
-
-        // SAFETY: We use pointer arithmetic to go backwards from self.data to
-        // reconstruct the data that's currently in the lookahead buffer. This
-        // is sound because:
-        // 1. The lookahead buffer was populated from bytes immediately before
-        //    self.data
-        // 2. We only go back by the number of complete bytes in lookahead
-        //    buffer
-        // 3. The resulting slice has the same lifetime as the original data
-        //
-        // This requires miri tree borrows to track that the borrow is still
-        // within the bounds of the allocation.
-        let start_ptr = unsafe { current_ptr.sub(lookahead_bytes) };
-        let remaining_slice = unsafe { core::slice::from_raw_parts(start_ptr, total_remaining) };
-
-        if unaligned_bits == 0 {
-            Remainder::new(0, 0, remaining_slice)
-        } else {
-            let partial_byte = if LE {
-                (self.bit_buf & ((1 << unaligned_bits) - 1)) as u8
-            } else {
-                (self.bit_buf >> (BIT_WIDTH - unaligned_bits as usize)) as u8
-            };
-
-            Remainder::new(partial_byte, unaligned_bits as u8, remaining_slice)
-        }
-    }
 }
 
 /// Contains information about unread data remaining in a bit reader.
@@ -1063,6 +1042,30 @@ impl<'a> LittleEndianReader<'a> {
     #[must_use]
     pub fn new(data: &'a [u8]) -> Self {
         Self(BitterState::new(data))
+    }
+
+    /// Returns the remainder of unread data.
+    ///
+    /// ```rust
+    /// # use bitter::{LittleEndianReader, BitReader};
+    /// let mut bits = LittleEndianReader::new(&[0b1010_1010, 0b0101_0101, 0b1100_0011]);
+    ///
+    /// // When byte-aligned, no partial bits
+    /// let remainder = bits.remainder();
+    /// assert_eq!(remainder.partial_bits(), 0);
+    /// assert_eq!(remainder.data(), &[0b1010_1010, 0b0101_0101, 0b1100_0011]);
+    ///
+    /// // After reading 3 bits, we have 5 bits remaining in a partially read byte
+    /// assert_eq!(bits.read_bits(3), Some(0b010));
+    /// let remainder = bits.remainder();
+    ///
+    /// assert_eq!(remainder.partial_bits(), 5);
+    /// assert_eq!(remainder.partial_byte(), 0b0001_0101);
+    /// assert_eq!(remainder.data(), &[0b0101_0101, 0b1100_0011]);
+    /// ```
+    #[inline]
+    pub fn remainder(&self) -> Remainder<'a> {
+        self.0.remainder()
     }
 }
 
@@ -1191,11 +1194,6 @@ impl BitReader for LittleEndianReader<'_> {
     fn byte_aligned(&self) -> bool {
         self.0.byte_aligned()
     }
-
-    #[inline]
-    fn remainder(&self) -> Remainder<'_> {
-        self.0.remainder()
-    }
 }
 
 /// Reads bits in the big-endian format
@@ -1214,6 +1212,30 @@ impl<'a> BigEndianReader<'a> {
     #[must_use]
     pub fn new(data: &'a [u8]) -> Self {
         Self(BitterState::new(data))
+    }
+
+    /// Returns the remainder of unread data.
+    ///
+    /// ```rust
+    /// # use bitter::{BigEndianReader, BitReader};
+    /// let mut bits = BigEndianReader::new(&[0b1010_1010, 0b0101_0101, 0b1100_0011]);
+    ///
+    /// // When byte-aligned, no partial bits
+    /// let remainder = bits.remainder();
+    /// assert_eq!(remainder.partial_bits(), 0);
+    /// assert_eq!(remainder.data(), &[0b1010_1010, 0b0101_0101, 0b1100_0011]);
+    ///
+    /// // After reading 3 bits, we have 5 bits remaining in a partially read byte
+    /// assert_eq!(bits.read_bits(3), Some(0b101));
+    /// let remainder = bits.remainder();
+    ///
+    /// assert_eq!(remainder.partial_bits(), 5);
+    /// assert_eq!(remainder.partial_byte(), 0b0000_1010);
+    /// assert_eq!(remainder.data(), &[0b0101_0101, 0b1100_0011]);
+    /// ```
+    #[inline]
+    pub fn remainder(&self) -> Remainder<'a> {
+        self.0.remainder()
     }
 }
 
@@ -1341,11 +1363,6 @@ impl BitReader for BigEndianReader<'_> {
     #[inline]
     fn byte_aligned(&self) -> bool {
         self.0.byte_aligned()
-    }
-
-    #[inline]
-    fn remainder(&self) -> Remainder<'_> {
-        self.0.remainder()
     }
 }
 
