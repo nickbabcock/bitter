@@ -1,3 +1,51 @@
+## 0.9.0 - 2026-02-09
+
+Remove `BitReader::remainder` as it artificially shortened the lifetime of the underlying data. Instead `LittleEndianReader::remainder` and `BigEndianReader::remainder` have been exposed and tie the remainder lifetime to the original data.
+
+For those interested in the old behavior or want a trait that can be tied to the lifetime of the data:
+
+```rust
+use bitter::{BigEndianReader, LittleEndianReader, Remainder};
+
+// Old behavior:
+pub trait BitReaderRemainder {
+    fn remainder(&self) -> Remainder<'_>;
+}
+
+impl BitReaderRemainder for LittleEndianReader<'_> {
+    #[inline]
+    fn remainder(&self) -> Remainder<'_> {
+        self.remainder()
+    }
+}
+
+impl BitReaderRemainder for BigEndianReader<'_> {
+    #[inline]
+    fn remainder(&self) -> Remainder<'_> {
+        self.remainder()
+    }
+}
+
+// Abstraction trait for lifetime-awareness:
+pub trait BitReaderSlice<'a> {
+    fn remainder(&self) -> Remainder<'a>;
+}
+
+impl<'a> BitReaderSlice<'a> for LittleEndianReader<'a> {
+    #[inline]
+    fn remainder(&self) -> Remainder<'a> {
+        self.remainder()
+    }
+}
+
+impl<'a> BitReaderSlice<'a> for BigEndianReader<'a> {
+    #[inline]
+    fn remainder(&self) -> Remainder<'a> {
+        self.remainder()
+    }
+}
+```
+
 ## 0.8.1 - 2025-09-26
 
 - Large performance improvement to unaligned `write_bytes`
