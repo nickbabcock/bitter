@@ -713,7 +713,7 @@ fn write_bytes(c: &mut Criterion) {
             let mut bitter = LittleEndianWriter::new(std::io::sink());
             b.iter(|| {
                 for _ in 0..ITERATIONS {
-                    bitter.write_bytes(&data)?;
+                    bitter.write_bytes(data)?;
                 }
                 Ok::<_, std::io::Error>(())
             });
@@ -724,7 +724,7 @@ fn write_bytes(c: &mut Criterion) {
             bitter.write_bit(true).expect("can write bit");
             b.iter(|| {
                 for _ in 0..ITERATIONS {
-                    bitter.write_bytes(&data)?;
+                    bitter.write_bytes(data)?;
                 }
                 Ok::<_, std::io::Error>(())
             });
