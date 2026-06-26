@@ -759,7 +759,7 @@ impl<const LE: bool> BitReader for BitterState<'_, LE> {
         self.read_u64().map(f64::from_bits)
     }
 
-    #[inline]
+    #[inline(always)]
     fn read_bits(&mut self, bits: u32) -> Option<u64> {
         debug_assert!(
             bits <= BIT_WIDTH as u32,
@@ -768,48 +768,50 @@ impl<const LE: bool> BitReader for BitterState<'_, LE> {
             bits
         );
 
-        if self.has_data_for_unaligned_loads() {
+        if bits <= MAX_READ_BITS {
+            if bits > self.bit_count {
+                if self.has_data_for_unaligned_loads() {
+                    self.refill();
+                } else if self.has_bits_remaining(bits as usize) {
+                    self.refill_eof();
+                } else {
+                    return None;
+                }
+            }
+
+            let result = self.peek(bits);
+            self.consume(bits);
+            Some(result)
+        } else if self.has_data_for_unaligned_loads() {
             if bits > self.bit_count {
                 self.refill();
             }
 
-            if bits <= MAX_READ_BITS {
-                let result = self.peek(bits);
-                self.consume(bits);
-                Some(result)
-            } else {
-                let lo = self.peek(MAX_READ_BITS);
-                self.consume(MAX_READ_BITS);
+            let lo = self.peek(MAX_READ_BITS);
+            self.consume(MAX_READ_BITS);
 
-                self.refill_lookahead();
-                let hi_len = bits - MAX_READ_BITS;
-                let hi = self.peek(hi_len);
-                self.consume(hi_len);
-                if LE {
-                    Some((hi << MAX_READ_BITS) + lo)
-                } else {
-                    Some((lo << hi_len) + hi)
-                }
+            self.refill_lookahead();
+            let hi_len = bits - MAX_READ_BITS;
+            let hi = self.peek(hi_len);
+            self.consume(hi_len);
+            if LE {
+                Some((hi << MAX_READ_BITS) + lo)
+            } else {
+                Some((lo << hi_len) + hi)
             }
         } else if self.has_bits_remaining(bits as usize) {
             self.refill_eof();
-            if bits <= MAX_READ_BITS {
-                let result = self.peek(bits);
-                self.consume(bits);
-                Some(result)
-            } else {
-                let lo = self.peek(MAX_READ_BITS);
-                self.consume(MAX_READ_BITS);
+            let lo = self.peek(MAX_READ_BITS);
+            self.consume(MAX_READ_BITS);
 
-                self.refill_eof();
-                let hi_len = bits - MAX_READ_BITS;
-                let hi = self.peek(hi_len);
-                self.consume(hi_len);
-                if LE {
-                    Some((hi << MAX_READ_BITS) + lo)
-                } else {
-                    Some((lo << hi_len) + hi)
-                }
+            self.refill_eof();
+            let hi_len = bits - MAX_READ_BITS;
+            let hi = self.peek(hi_len);
+            self.consume(hi_len);
+            if LE {
+                Some((hi << MAX_READ_BITS) + lo)
+            } else {
+                Some((lo << hi_len) + hi)
             }
         } else {
             None
