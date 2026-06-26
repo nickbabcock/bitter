@@ -1,3 +1,7 @@
+## 0.9.1 - 2026-06-25
+
+Improve throughput performance of `read_bits` by up to 50% for small bit reads. Real world performance measured at a 15% throughput improvement. This was accomplished through restructuring the code so that constant bit reads are const propagated more effectively.
+
 ## 0.9.0 - 2026-02-09
 
 Remove `BitReader::remainder` as it artificially shortened the lifetime of the underlying data. Instead `LittleEndianReader::remainder` and `BigEndianReader::remainder` have been exposed and tie the remainder lifetime to the original data.
@@ -236,7 +240,7 @@ Maintenance release that trims down the number of files in crate so that the dow
 ## 0.4.0 - 2019-12-17
 
 Fix has_bits_remaining at max value to avoid overflow
- 
+
 The read_bits_max function is now split into two halves:
 
 - `read_bits_max` which takes one fewer argument
@@ -271,13 +275,13 @@ to value read.
 
 ## 0.3.2 - 2019-05-23
 
-* A 10%-50% performance improvement to unchecked API (and checked APIs but to a lesser extent)
+- A 10%-50% performance improvement to unchecked API (and checked APIs but to a lesser extent)
 
 ## 0.3.1 - 2019-01-30
 
-* In 0.3.0 a performance optimization was used that satisfied valgrind's memcheck but failed LLVM's AddressSanitizer with a heap-buffer-overflow despite the overflowed bytes never being acted upon. This optimization has been removed to increase bitter's friendliness.
-* Fix bug in `read_bytes`
-* Fix bug in `has_bits_remaining`
+- In 0.3.0 a performance optimization was used that satisfied valgrind's memcheck but failed LLVM's AddressSanitizer with a heap-buffer-overflow despite the overflowed bytes never being acted upon. This optimization has been removed to increase bitter's friendliness.
+- Fix bug in `read_bytes`
+- Fix bug in `has_bits_remaining`
 
 ## 0.3.0 - 2019-01-23
 
@@ -293,4 +297,4 @@ to value read.
 
 ## 0.1.0 - 2018-01-25
 
-* Initial release
+- Initial release
